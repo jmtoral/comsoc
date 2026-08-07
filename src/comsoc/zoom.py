@@ -49,22 +49,23 @@ VISTAS = {
     },
     "medios": {
         "archivo": "medios.html",
-        "padre": "medio_familia",
+        "padre": "beneficiario_canonico",
         "hijo": "medio_producto",
         "titulo": "¿En qu&eacute; <em>medios</em>?",
         "titulo_tab": "¿En qu&eacute; medios? &middot; Publicidad oficial federal",
-        "bajada": ("Gasto federal en publicidad oficial por tipo de medio. Cada caja es una "
-                   "familia de medios y su tama&ntilde;o es lo que se le pag&oacute;. "
-                   "<b>Da clic</b> para ver el desglose por producto."),
-        "etq_padre": "familias de medios",
+        "bajada": ("Gasto federal en publicidad oficial por medio de comunicaci&oacute;n. Cada "
+                   "caja es una empresa &mdash;Televisa, TV Azteca, La Jornada&mdash; y su "
+                   "tama&ntilde;o es lo que cobr&oacute;. <b>Da clic</b> para ver qu&eacute; "
+                   "le vendi&oacute; al gobierno."),
+        "etq_padre": "medios",
         "etq_hijo": "productos",
-        "cab_padre": "Medios",
+        "cab_padre": "Medios de comunicación",
         "cab_hijo": "Productos",
         "buscar": "Buscar medio&hellip;",
         "volver": "Todos los medios",
         "descripcion": ("Treemap interactivo del gasto federal mexicano en publicidad oficial por "
-                        "tipo de medio: televisión, radio, diarios, internet y exterior, con su "
-                        "desglose por producto."),
+                        "medio de comunicación: cada caja es una empresa y al darle clic se abre "
+                        "qué productos le vendió al gobierno."),
     },
 }
 
@@ -97,6 +98,8 @@ def construir_datos(df: pd.DataFrame, vista: dict) -> dict:
     # nada, porque la homologación quita el acrónimo y renombra a LOTENAL.
     if padre == "institucion_canonica":
         siglas = alias_busqueda(b, "institucion", "institucion_canonica")
+    elif padre == "beneficiario_canonico":
+        siglas = alias_busqueda(b, "beneficiario", "beneficiario_canonico")
     else:
         siglas = {}
     alias = [siglas.get(n, "") for n in nombres]

@@ -378,15 +378,25 @@ td:first-child{font-family:var(--font-body);color:var(--ink)}
 .portada .ir{font-family:var(--font-display);font-weight:700;color:var(--accent-deep);
   font-size:14px;margin-top:auto;letter-spacing:.02em}
 
-/* ── paneles de medios ── */
-.paneles{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px}
-.panel{border:1px solid var(--line);border-radius:12px;padding:12px 12px 8px;
-  background:var(--surface-2)}
-.panel h4{font-family:var(--font-display);font-size:14.5px;margin:0 0 2px;color:var(--ink);
-  font-weight:700}
-.panel .cifra{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-3);
-  font-variant-numeric:tabular-nums;margin:0 0 8px}
-.panel svg{width:100%;height:auto;display:block}
+/* ── líneas de medios ──
+   El color no distingue series: son nueve y ninguna paleta de nueve sobrevive al
+   daltonismo. La identidad la dan las etiquetas al final; el acento solo marca
+   la línea que estás señalando. */
+.linea{fill:none;stroke:var(--ink-3);stroke-width:1.6;opacity:.5;
+  stroke-linejoin:round;stroke-linecap:round;transition:stroke .1s ease,opacity .1s ease}
+.linea.act{stroke:var(--accent);stroke-width:2.8;opacity:1}
+.guia{stroke:var(--line-2);stroke-width:1;fill:none}
+.guia.act{stroke:var(--accent)}
+.etq-linea{font-family:var(--font-body);font-size:11.5px;fill:var(--ink-2);pointer-events:none}
+.etq-linea.act{fill:var(--accent-deep);font-weight:700}
+.etq-val{font-family:var(--font-mono);font-size:11px;fill:var(--ink-3);
+  font-variant-numeric:tabular-nums;pointer-events:none}
+.cross{stroke:var(--accent);stroke-width:1;opacity:.4;stroke-dasharray:3 3}
+.punto{fill:var(--surface);stroke:var(--ink-3);stroke-width:1.4}
+.punto.act{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+#mCaptura{cursor:crosshair}
+#tip .fl{display:flex;justify-content:space-between;gap:14px;opacity:.72;padding:1px 0}
+#tip .fl.act{opacity:1;font-weight:700}
 .nota-pie{font-size:12.5px;color:var(--ink-3);margin:14px 0 0}
 
 /* ── descargas ── */
@@ -532,8 +542,8 @@ CUERPO = """
           <i style="grid-area:3/4/4/5;background:var(--a1)"></i>
         </span>
         <b>&iquest;En qu&eacute; medios?</b>
-        <span>Televisi&oacute;n, radio, diarios, internet y exterior. Da clic en una familia
-          y se abre el desglose por producto.</span>
+        <span>Cada caja es un medio de comunicaci&oacute;n &mdash;Televisa, TV Azteca, La
+          Jornada&mdash;. Da clic y se abre qu&eacute; le vendi&oacute; al gobierno.</span>
         <span class="ir">Abrir &rarr;</span>
       </a>
     </div>
@@ -541,9 +551,9 @@ CUERPO = """
 
   <section>
     <h2>En qu&eacute; medios se gasta, a lo largo del tiempo</h2>
-    <p class="sub">Cada panel es una familia de medios y muestra qu&eacute; porcentaje del gasto
-      del a&ntilde;o se llev&oacute;. Comparten la misma escala, as&iacute; que las alturas se
-      pueden comparar entre paneles.</p>
+    <p class="sub">Las nueve familias de medios en el mismo plano. Pasa el cursor por la
+      gr&aacute;fica para ver todos los valores de ese a&ntilde;o; la l&iacute;nea m&aacute;s
+      cercana se resalta.</p>
     <div class="card">
       <div class="filtros">
         <select id="mMedida" aria-label="Medida">
@@ -551,8 +561,15 @@ CUERPO = """
           <option value="abs">En millones de pesos de 2020</option>
         </select>
       </div>
-      <div id="mPaneles" class="paneles"></div>
+      <div class="chart-scroll">
+        <svg id="mLineas" viewBox="0 0 1000 430" role="img"
+             aria-label="Gasto por familia de medio, 2012 a 2025"></svg>
+      </div>
       <p class="nota-pie" id="mNota"></p>
+      <details>
+        <summary>Ver los datos</summary>
+        <div class="tbl-scroll"><table id="tblMedios"></table></div>
+      </details>
     </div>
   </section>
 
@@ -917,45 +934,131 @@ function selAnio(a){
     '<th>Renglones</th><th style="text-align:left">Sexenio</th></tr></thead><tbody>'+rows+'</tbody>';
 })();
 
-/* ── medios en el tiempo: pequeños múltiplos ────────────────────────── */
-/* Nueve familias no caben como nueve colores categóricos —el límite práctico son
-   ocho y ninguna paleta de nueve tonos sobrevive al daltonismo—, así que cada una
-   va en su propio panel con un solo acento y escala compartida. */
+/* ── medios en el tiempo: nueve líneas en el mismo plano ─────────────── */
+/* Nueve series no caben como nueve colores: se probó una paleta de nueve y el par
+   #F62477 / #2E9E8B cae a 5.3 de ΔE bajo daltonismo, bajo el piso de 6. Así que el
+   color NO carga la identidad: la cargan las etiquetas al final de cada línea, y
+   el color solo marca cuál estás señalando. */
 const MED = DATA.medios, ANIOS = serie.map(d=>d.anio);
+const LW=1000, LH=430, LML=56, LMR=196, LMT=16, LMB=42;
+let mDatos=[], mEsc=null;
+
+function valoresMedio(f, modo, tot){
+  return MED.serie[f].map((v,i)=> modo==='pct' ? (tot[ANIOS[i]] ? 100*v/tot[ANIOS[i]] : 0) : v);
+}
+
 function pintaMedios(){
   const modo = document.getElementById('mMedida').value;
   const tot = {}; serie.forEach(d=>tot[d.anio]=d.real);
-  const val = f => MED.serie[f].map((v,i)=> modo==='pct' ? (tot[ANIOS[i]]?100*v/tot[ANIOS[i]]:0) : v);
-  const max = Math.max.apply(null, MED.familias.map(f=>Math.max.apply(null,val(f))));
-  const W=250,H=104,ML=6,MR=6,MT=8,MB=17;
+  mDatos = MED.familias.map(f=>({f:f, v:valoresMedio(f,modo,tot)}));
+  const max = Math.max.apply(null, mDatos.map(d=>Math.max.apply(null,d.v))) * 1.06;
+  const x = i => LML + (LW-LML-LMR) * i/(ANIOS.length-1);
+  const y = v => LMT + (LH-LMT-LMB) * (1 - (max ? v/max : 0));
+  mEsc = {x:x, y:y, max:max, modo:modo};
 
-  document.getElementById('mPaneles').innerHTML = MED.familias.map(f=>{
-    const v=val(f), tt=MED.serie[f].reduce((a,b)=>a+b,0);
-    const bw=(W-ML-MR)/v.length;
-    const barras = v.map((x,i)=>{
-      const h=max?((H-MT-MB)*x/max):0;
-      const y=H-MB-h;
-      return '<rect x="'+(ML+i*bw+1).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(bw-2).toFixed(1)+
-        '" height="'+Math.max(h,0.6).toFixed(1)+'" rx="1.5" fill="var(--accent)"'+
-        (i===v.length-1?' opacity="1"':' opacity=".82"')+
-        '><title>'+ANIOS[i]+': '+(modo==='pct'?x.toFixed(1)+'%':fmt1(x)+' MDP')+'</title></rect>';
-    }).join('');
-    const ejes = '<line x1="'+ML+'" x2="'+(W-MR)+'" y1="'+(H-MB)+'" y2="'+(H-MB)+
-      '" stroke="var(--line-2)" stroke-width="1"/>'+
-      '<text x="'+ML+'" y="'+(H-4)+'" font-size="9" fill="var(--ink-3)" font-family="var(--font-mono)">'+
-      ANIOS[0]+'</text>'+
-      '<text x="'+(W-MR)+'" y="'+(H-4)+'" font-size="9" fill="var(--ink-3)" text-anchor="end" font-family="var(--font-mono)">'+
-      ANIOS[ANIOS.length-1]+'</text>';
-    const ult = v[v.length-1];
-    return '<div class="panel"><h4>'+f+'</h4><p class="cifra">'+
-      (modo==='pct'? ult.toFixed(1)+'% en '+ANIOS[ANIOS.length-1] : fmt1(ult)+' MDP en '+ANIOS[ANIOS.length-1])+
-      ' · '+fmt1(tt)+' MDP acumulados</p><svg viewBox="0 0 '+W+' '+H+'">'+ejes+barras+'</svg></div>';
-  }).join('');
+  const svg = document.getElementById('mLineas');
+  svg.textContent = '';
+
+  for(let k=0;k<=4;k++){
+    const v = max*k/4, yy = y(v);
+    svg.appendChild(el('line',{x1:LML,x2:LW-LMR,y1:yy,y2:yy,class:'grid-line'}));
+    const t = el('text',{x:LML-9,y:yy+4,class:'axis-txt','text-anchor':'end'});
+    t.textContent = modo==='pct' ? v.toFixed(0)+'%' : fmt(v);
+    svg.appendChild(t);
+  }
+  ANIOS.forEach((a,i)=>{
+    if(i%2 && i!==ANIOS.length-1) return;
+    const t = el('text',{x:x(i),y:LH-LMB+20,class:'axis-yr','text-anchor':'middle'});
+    t.textContent = "'"+String(a).slice(2); svg.appendChild(t);
+  });
+
+  const gCross = el('g',{id:'mCross'}); svg.appendChild(gCross);
+
+  mDatos.forEach((d,k)=>{
+    const pts = d.v.map((v,i)=>x(i).toFixed(1)+','+y(v).toFixed(1)).join(' ');
+    svg.appendChild(el('polyline',{points:pts,class:'linea',id:'ln'+k}));
+  });
+
+  /* Etiquetas al final, separadas para que no se encimen. */
+  const fin = mDatos.map((d,k)=>({k:k, f:d.f, v:d.v[d.v.length-1], y:y(d.v[d.v.length-1])}))
+                    .sort((a,b)=>a.y-b.y);
+  const MIN=15;
+  for(let i=1;i<fin.length;i++) if(fin[i].y - fin[i-1].y < MIN) fin[i].y = fin[i-1].y + MIN;
+  const desborde = fin[fin.length-1].y - (LH-LMB);
+  if(desborde>0) fin.forEach(o=>o.y -= desborde);
+
+  fin.forEach(o=>{
+    const yl = y(o.v);
+    svg.appendChild(el('path',{d:'M'+(LW-LMR+4)+','+yl.toFixed(1)+' L'+(LW-LMR+14)+','+o.y.toFixed(1),
+      class:'guia', id:'gu'+o.k}));
+    const t = el('text',{x:LW-LMR+18,y:o.y+4,class:'etq-linea',id:'et'+o.k});
+    t.textContent = o.f; svg.appendChild(t);
+    const val = el('text',{x:LW-6,y:o.y+4,class:'etq-val','text-anchor':'end',id:'ev'+o.k});
+    val.textContent = mEsc.modo==='pct' ? o.v.toFixed(1)+'%' : fmt(o.v);
+    svg.appendChild(val);
+  });
+
+  const cap = el('rect',{x:LML,y:LMT,width:LW-LML-LMR,height:LH-LMT-LMB,
+    fill:'transparent',id:'mCaptura'});
+  svg.appendChild(cap);
+  cap.addEventListener('mousemove',mueveMedios);
+  cap.addEventListener('mouseleave',()=>{limpiaMedios();hideTip();});
 
   document.getElementById('mNota').textContent = modo==='pct'
-    ? 'Escala común de 0 a '+max.toFixed(0)+'% en los nueve paneles. Pasa el cursor por cada barra para ver el año.'
-    : 'Escala común de 0 a '+fmt(max)+' MDP en los nueve paneles.';
+    ? 'Nueve familias, misma escala de 0 a '+max.toFixed(0)+'% del gasto del año.'
+    : 'Nueve familias, misma escala de 0 a '+fmt(max)+' millones de pesos de 2020.';
+  tablaMedios(modo, tot);
 }
+
+function limpiaMedios(){
+  mDatos.forEach((d,k)=>{
+    const l=document.getElementById('ln'+k); if(l) l.classList.remove('act');
+    const e=document.getElementById('et'+k); if(e) e.classList.remove('act');
+    const g=document.getElementById('gu'+k); if(g) g.classList.remove('act');
+  });
+  const c=document.getElementById('mCross'); if(c) c.textContent='';
+}
+
+function mueveMedios(ev){
+  if(!mEsc) return;
+  const svg=document.getElementById('mLineas');
+  const caja=svg.getBoundingClientRect();
+  const esc=LW/caja.width;
+  const px=(ev.clientX-caja.left)*esc, py=(ev.clientY-caja.top)*esc;
+  const paso=(LW-LML-LMR)/(ANIOS.length-1);
+  let i=Math.round((px-LML)/paso);
+  i=Math.max(0,Math.min(ANIOS.length-1,i));
+
+  let cerca=0, dmin=Infinity;
+  mDatos.forEach((d,k)=>{ const dd=Math.abs(mEsc.y(d.v[i])-py); if(dd<dmin){dmin=dd;cerca=k;} });
+
+  limpiaMedios();
+  const l=document.getElementById('ln'+cerca); if(l) l.classList.add('act');
+  const e=document.getElementById('et'+cerca); if(e) e.classList.add('act');
+  const g=document.getElementById('gu'+cerca); if(g) g.classList.add('act');
+
+  const gc=document.getElementById('mCross');
+  gc.appendChild(el('line',{x1:mEsc.x(i),x2:mEsc.x(i),y1:LMT,y2:LH-LMB,class:'cross'}));
+  mDatos.forEach((d,k)=>gc.appendChild(el('circle',{cx:mEsc.x(i),cy:mEsc.y(d.v[i]),
+    r:k===cerca?4.5:2.5,class:'punto'+(k===cerca?' act':'')})));
+
+  const orden=mDatos.map((d,k)=>({f:d.f,v:d.v[i],k:k})).sort((a,b)=>b.v-a.v);
+  const fmtv = v => mEsc.modo==='pct' ? v.toFixed(1)+'%' : fmt1(v)+' MDP';
+  showTip(ev,'<b>'+ANIOS[i]+'</b>'+orden.map(o=>
+    '<div class="fl'+(o.k===cerca?' act':'')+'"><span>'+o.f+'</span><span class="n">'+
+    fmtv(o.v)+'</span></div>').join(''));
+}
+
+function tablaMedios(modo, tot){
+  const enc='<thead><tr><th style="text-align:left">Familia</th>'+
+    ANIOS.map(a=>'<th>'+a+'</th>').join('')+'</tr></thead>';
+  const filas=MED.familias.map(f=>{
+    const v=valoresMedio(f,modo,tot);
+    return '<tr><td>'+f+'</td>'+v.map(x=>'<td>'+(modo==='pct'?x.toFixed(1):fmt1(x))+'</td>').join('')+'</tr>';
+  }).join('');
+  document.getElementById('tblMedios').innerHTML=enc+'<tbody>'+filas+'</tbody>';
+}
+
 document.getElementById('mMedida').addEventListener('change',pintaMedios);
 pintaMedios();
 
