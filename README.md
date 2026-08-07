@@ -1,7 +1,11 @@
 # COMSOC — Publicidad oficial del gobierno federal mexicano
 
+**Reporte interactivo → <https://jmtoral.github.io/comsoc/>**
+
 Dataset unificado de **pólizas** de gasto en comunicación social, 2012–2025, a partir de los
 Excel que publica la Secretaría Anticorrupción y Buen Gobierno (antes SFP).
+
+Análisis y elaboración: **Manuel Toral**.
 
 Migración del pipeline original en R (`legacy/R/`) a Python, con el objetivo de **detectar
 comportamientos en el gasto en publicidad oficial**.
