@@ -255,7 +255,37 @@ Se descartan 785 pares por debajo de 10 mil pesos (1.7 MDP de 97,090, un 0.0018%
 Geometría verificada con los datos reales: 15 layouts de instituciones × 4 tamaños de pantalla y
 2,057 de empresas × 2, **sin un solo desborde ni traslape**.
 
-### 3.10 Entorno: conda local
+### 3.10 Publicación del dataset
+
+`export.publicar_descargas()` escribe en `docs/datos/` y el reporte los enlaza:
+
+| archivo | tamaño |
+|---|---:|
+| `comsoc_polizas.csv.gz` | 15.5 MB |
+| `comsoc_polizas.parquet` (zstd) | 11.6 MB |
+
+Las 56 columnas completas, más un diccionario de las 28 que necesitan explicación. El CSV lleva
+**BOM y entrecomillado con comillas duplicadas**: sin eso Excel en Windows rompe los acentos y
+parte las columnas en nombres con coma («DEMOS, DESARROLLO DE MEDIOS»).
+
+Un tercer botón genera el resumen por entidad y año en el navegador, sin peso extra.
+
+⚠ El repo pesa ~31 MB con estos archivos. Si crece demasiado con las actualizaciones anuales,
+moverlos a un Release de GitHub.
+
+### 3.11 El buscador necesita alias, no solo el nombre canónico
+
+Los dos buscadores compartían un fallo: **la homologación borra justo lo que la gente teclea.**
+Quita el acrónimo, así que `imss` ya no aparecía en «INSTITUTO MEXICANO DEL SEGURO SOCIAL»; y
+renombra, así que «LOTERÍA NACIONAL» quedó como `LOTENAL` y buscar «lotería» daba cero.
+
+`reporte.alias_busqueda()` indexa, por nombre canónico, las palabras de sus nombres crudos que no
+estén ya en el canónico. No se muestran, solo se buscan. Lo usan las dos páginas.
+
+*Lección: cada vez que se agregue una regla de homologación hay que preguntarse si borra un
+término por el que alguien buscaría.*
+
+### 3.12 Entorno: conda local
 
 Se descartó Colab. Todo corre en local sobre **`pnt_analysis`**, environment **reutilizado** de
 otro proyecto del mismo dominio: Python 3.12.3, pandas 2.2.2, pyarrow 16.1, plotnine 0.13.6,
@@ -264,7 +294,7 @@ networkx, scipy, matplotlib, ipykernel. Se le agregaron `openpyxl`, `pyyaml` y `
 Intérprete: `C:\Users\User\anaconda3\envs\pnt_analysis\python.exe`. `conda` no está en el PATH.
 Correr siempre con `-X utf8`.
 
-### 3.11 Código
+### 3.13 Código
 
 `src/comsoc/`: `config`, `layouts`, `schema`, `ingest`, `clean`, `entities`, `ids`, `deflate`,
 `validate`, `export`, `reporte`, `zoom`, `build`.

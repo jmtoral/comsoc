@@ -62,6 +62,18 @@ trampas que rompen las cifras en silencio.
     └── inputs/                deflactor original en xlsx
 ```
 
+## Descargar el dataset
+
+| Archivo | Tamaño | Para quién |
+|---|---:|---|
+| [`comsoc_polizas.csv.gz`](https://jmtoral.github.io/comsoc/datos/comsoc_polizas.csv.gz) | 15.5 MB | Excel, R, pandas, Stata |
+| [`comsoc_polizas.parquet`](https://jmtoral.github.io/comsoc/datos/comsoc_polizas.parquet) | 11.6 MB | Python o R, con tipos |
+
+196,480 renglones × 56 columnas, 2012–2025. El reporte incluye el diccionario de columnas y un
+tercer botón que genera al vuelo el resumen por entidad y año (13,894 filas).
+
+Se regeneran con `python -c "from comsoc import export; export.publicar_descargas()"`.
+
 ## Los datos de origen
 
 **Los 15 Excel no están versionados** (45 MB, y son públicos). Para correr el pipeline hay que
