@@ -47,6 +47,32 @@ PANELES = {
 
 # ─────────────────────────────────────────────────────────────── datos
 
+def alias_busqueda(b: pd.DataFrame, crudo: str, canonico: str) -> dict[str, str]:
+    """Palabras extra para buscar una entidad por como se llama en la fuente.
+
+    Hace falta porque la homologación borra justo lo que la gente teclea: quita el
+    acrónimo final —así `imss` ya no aparece en «INSTITUTO MEXICANO DEL SEGURO
+    SOCIAL»— y renombra —«LOTERÍA NACIONAL» quedó como `LOTENAL`, de modo que
+    buscar «lotería» no encontraba nada.
+
+    Devuelve, por nombre canónico, las palabras de sus nombres crudos que no estén
+    ya en el canónico. No se muestran: solo se indexan.
+    """
+    from .entities import plegar
+
+    out: dict[str, str] = {}
+    for canon, grupo in b.groupby(canonico, observed=True)[crudo]:
+        base = set(plegar(canon).lower().split())
+        palabras: list[str] = []
+        for valor in grupo.dropna().unique():
+            for w in re.split(r"[^0-9a-z]+", plegar(str(valor)).lower()):
+                if len(w) > 1 and w not in base and w not in palabras:
+                    palabras.append(w)
+        if palabras:
+            out[canon] = " ".join(palabras)
+    return out
+
+
 def construir_datos(df: pd.DataFrame) -> dict:
     b = df[(df.vintage == "definitiva") & (~df.es_intercambio)]
 
@@ -101,19 +127,9 @@ def construir_datos(df: pd.DataFrame) -> dict:
     nom = sorted(nombres)
     ind = {n: i for i, n in enumerate(nom)}
 
-    # Siglas para el buscador. La homologación quita el acrónimo final —"(IMSS)"—
-    # porque la fuente dejó de escribirlo en 2024 y partía 109 instituciones en dos.
-    # Pero la gente busca por siglas, así que se conservan aparte: no se muestran,
-    # solo se indexan.
-    siglas: dict[str, set[str]] = {}
-    for crudo, canon in zip(b["institucion"], b["institucion_canonica"]):
-        if not isinstance(crudo, str):
-            continue
-        for m in re.findall(r"\(([^)]{2,14})\)", crudo):
-            m = m.strip()
-            if m and m.upper() == m and m not in canon:
-                siglas.setdefault(canon, set()).add(m)
-    alias = [" ".join(sorted(siglas.get(n, ()))) for n in nom]
+    siglas = alias_busqueda(b, "institucion", "institucion_canonica")
+    siglas.update(alias_busqueda(b, "beneficiario", "beneficiario_canonico"))
+    alias = [siglas.get(n, "") for n in nom]
 
     tabla = {"nombres": nom, "alias": alias,
              "filas": [[f[0], f[1], ind[f[2]], f[3], f[4], f[5], f[6], f[7]] for f in filas]}
@@ -315,6 +331,19 @@ td:first-child{font-family:var(--font-body);color:var(--ink)}
   font-variant-numeric:tabular-nums}
 .vacio{text-align:center;padding:32px 12px;color:var(--ink-3);font-size:14.5px}
 
+/* ── descargas ── */
+.bajar{display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:12px}
+.bj{display:flex;flex-direction:column;gap:3px;text-align:left;padding:16px 18px;border-radius:14px;
+  border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink-2);
+  text-decoration:none;cursor:pointer;font-family:var(--font-body);font-size:13px;
+  transition:border-color .12s ease,transform .12s ease}
+.bj:hover{border-color:var(--accent);transform:translateY(-1px)}
+.bj b{font-family:var(--font-display);font-size:16px;color:var(--ink);font-weight:700}
+.bj .q{color:var(--ink-3);font-size:12px}
+.bj.primario{background:var(--soft-yellow);border-color:#E8C65C}
+.bj.primario b{color:var(--accent-deep)}
+.bj.primario .q{color:#7A5C10}
+
 /* ── concentración ── */
 .conc-cab,.conc-fila{display:grid;grid-template-columns:minmax(150px,1.6fr) minmax(120px,2.2fr) 58px 72px 92px;
   gap:12px;align-items:center}
@@ -493,6 +522,35 @@ CUERPO = """
       <p class="cuenta" id="cuenta"></p>
       <div class="tbl-scroll"><table id="tblBusca"></table></div>
       <div class="pag" id="pag"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Ll&eacute;vate los datos</h2>
+    <p class="sub">Todo lo que hay detr&aacute;s de este reporte, para que puedas revisarlo,
+      rehacerlo o contradecirlo.</p>
+    <div class="card">
+      <div class="bajar">
+        <a class="bj primario" href="datos/comsoc_polizas.csv.gz" download>
+          <b>Dataset completo &middot; CSV</b>
+          <span>__PESO_CSV__ MB comprimido &middot; __RENGLONES__ renglones &times; 56 columnas</span>
+          <span class="q">Lo abre Excel, R, pandas o Stata</span>
+        </a>
+        <a class="bj" href="datos/comsoc_polizas.parquet" download>
+          <b>Dataset completo &middot; Parquet</b>
+          <span>__PESO_PARQUET__ MB &middot; mismos datos, con tipos</span>
+          <span class="q">Para analizarlo en Python o R</span>
+        </a>
+        <button class="bj" id="bajaAgregado" type="button">
+          <b>Resumen por entidad y a&ntilde;o &middot; CSV</b>
+          <span>__FILAS__ renglones &middot; se genera al instante</span>
+          <span class="q">Lo mismo que muestra el buscador</span>
+        </button>
+      </div>
+      <details>
+        <summary>Qu&eacute; trae cada columna</summary>
+        <div class="tbl-scroll"><table id="tblDicc"></table></div>
+      </details>
     </div>
   </section>
 
@@ -882,8 +940,69 @@ function pintar(){
   filtrar();
 })();
 
+/* ── descargas ──────────────────────────────────────────────────────── */
+const DICC = __DICCIONARIO__;
+document.getElementById('tblDicc').innerHTML =
+  '<thead><tr><th>Columna</th><th style="text-align:left">Qué es</th></tr></thead><tbody>'+
+  DICC.map(d=>'<tr><td><code>'+d[0]+'</code></td><td style="text-align:left">'+d[1]+'</td></tr>').join('')+
+  '</tbody>';
+
+/* Comillas dobles duplicadas y campo entrecomillado: así un nombre con coma
+   —"DEMOS, DESARROLLO DE MEDIOS"— no parte la columna al abrirlo en Excel. */
+const csvCampo = v => {
+  const s = (v===null||v===undefined) ? '' : String(v);
+  return /[",\n;]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+};
+function bajaCSV(nombre, cabeceras, filas){
+  const txt = [cabeceras.join(',')].concat(filas.map(f=>f.map(csvCampo).join(','))).join('\r\n');
+  /* BOM para que Excel en Windows reconozca el UTF-8 y no rompa los acentos. */
+  const blob = new Blob(['﻿'+txt], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = nombre;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();}, 0);
+}
+document.getElementById('bajaAgregado').addEventListener('click',()=>{
+  bajaCSV('comsoc_resumen_entidad_anio.csv',
+    ['anio','tipo','nombre','erogado_o_recibido_mdp_2020','pct_del_anio',
+     'mdp_nominales','polizas','renglones','de_la_partida_33605_mdp'],
+    T.filas.map(f=>[f[0], f[1]?'empresa':'institucion', T.nombres[f[2]], f[3],
+      TOT_ANIO[f[0]] ? (100*f[3]/TOT_ANIO[f[0]]).toFixed(3) : '', f[4], f[5], f[6], f[7]]));
+});
+
 drawBars(); drawYears(); selAnio(anioSel);
 """
+
+DICCIONARIO = [
+    ("anio_fuente", "Ejercicio fiscal que reporta el archivo. <b>Es el año que hay que usar</b> para agrupar la serie."),
+    ("anio / mes_gasto", "Derivados de <code>fecha_gasto</code>. Arrastran fechas mal capturadas por la fuente; no agrupes con ellos."),
+    ("fecha_gasto", "Fecha del gasto, ya normalizada desde los dos formatos de origen (serial de Excel y texto)."),
+    ("partida", "36101 y 36201 son campañas; 33605 es información en medios por operación."),
+    ("partida_grupo", "<code>36101-36201</code> o <code>33605</code>. La agrupación con la que la fuente organiza sus hojas."),
+    ("clave_entidad / institucion", "Quién pagó, tal como viene en la fuente."),
+    ("institucion_canonica", "Institución homologada. <b>Úsala para agrupar</b>: la fuente escribe el mismo nombre de varias formas."),
+    ("beneficiario / beneficiario_canonico", "Quién cobró, crudo y homologado."),
+    ("rfc_beneficiario", "RFC del proveedor. Solo existe en 2012–2016 y 2024–2025."),
+    ("poliza / poliza_id", "Número de póliza de la fuente, y su identificador estable (hash de año + grupo de partida + entidad + póliza)."),
+    ("renglon_id", "Identificador único de cada renglón en todo el dataset. Sirve de llave al unir tablas."),
+    ("n_renglones", "Cuántos renglones tiene la póliza a la que pertenece esta fila."),
+    ("monto / iva", "Pago al proveedor sin IVA, y su IVA."),
+    ("monto_total", "<code>monto + iva</code>. El gasto nominal."),
+    ("monto_real", "<code>monto_total</code> deflactado a pesos de 2020. <b>Úsalo para comparar entre años.</b>"),
+    ("deflactor_estimado", "1 si el factor de ese año todavía es estimado (2025 y 2026)."),
+    ("nivel_registro", "Siempre <code>renglon</code> en esta descarga. Las filas de factura se separaron para reconciliar."),
+    ("vintage", "<code>definitiva</code> o <code>preliminar</code>. 2023 tiene dos ediciones; filtra a definitiva salvo que compares."),
+    ("es_reversa", "Contra-asiento con monto negativo. <b>Súmalo con signo</b>; excluirlo infla el total."),
+    ("es_intercambio", "Publicidad pagada en especie, no en dinero."),
+    ("n_identicas", "Tamaño del grupo de filas idénticas. Hay 9,036 filas duplicadas en el histórico que no se eliminaron a ciegas."),
+    ("fecha_fuera_de_rango", "La fecha no cae en su ejercicio. Marcada, no corregida."),
+    ("archivo / hoja / generacion", "De qué Excel y qué pestaña salió cada fila, y con qué formato se leyó. Es el rastro de auditoría."),
+    ("producto_clave / producto_desc", "Qué se compró: tipo de inserción y su descripción."),
+    ("unidad / unidad_desc / cantidad / costo_unitario", "Unidad de medida y precio unitario de la inserción."),
+    ("campana_clave / campana_nombre", "Campaña asociada. El nombre solo existe desde 2024."),
+    ("clase_medio", "Tipo de medio (diarios, radio, internet…). Solo en 2024–2025."),
+    ("importe_factura / iva_factura", "Vacíos en esta descarga: son el nivel factura, que vive en el archivo de reconciliación."),
+]
 
 AUTOR = "Manuel Toral"
 URL_COMSOC = "https://www.gob.mx/buengobierno/documentos/estrategia-de-comunicacion-social"
@@ -894,7 +1013,12 @@ DESCRIPCION = ("Gasto del gobierno federal mexicano en publicidad oficial, 2012-
 
 
 def _fragmento(datos: dict) -> str:
+    from .export import tamanos_descargas
+
+    pesos = tamanos_descargas()
     cuerpo = (CUERPO
+              .replace("__PESO_CSV__", str(pesos.get("comsoc_polizas.csv.gz", "~15")))
+              .replace("__PESO_PARQUET__", str(pesos.get("comsoc_polizas.parquet", "~12")))
               .replace("__RENGLONES__", f"{datos['meta']['renglones']:,}")
               .replace("__POLIZAS__", f"{datos['meta']['polizas']:,}")
               .replace("__TOP__", str(PANELES["beneficiarios"]["top"]))
@@ -904,6 +1028,8 @@ def _fragmento(datos: dict) -> str:
               .replace("__AUTOR__", AUTOR))
     guion = (GUION
              .replace("__DATOS__", json.dumps(datos, ensure_ascii=False, separators=(",", ":")))
+             .replace("__DICCIONARIO__",
+                      json.dumps(DICCIONARIO, ensure_ascii=False, separators=(",", ":")))
              .replace("__AUTOR__", AUTOR))
     return f"<title>{TITULO}</title>\n<style>{ESTILO}</style>\n{cuerpo}\n<script>{guion}</script>\n"
 

@@ -31,3 +31,6 @@ venv/
 # SO
 Thumbs.db
 .DS_Store
+
+# Los archivos de descarga SÍ se versionan (docs/datos/): son la publicación del
+# dataset. Si el repo crece demasiado con los años, moverlos a un Release.

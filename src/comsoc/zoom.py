@@ -25,7 +25,7 @@ from pathlib import Path
 import pandas as pd
 
 from .config import DOCS_DIR, POLIZAS_PARQUET, asegurar_directorios
-from .reporte import AUTOR, FAVICON, TOKENS, URL_COMSOC
+from .reporte import AUTOR, FAVICON, TOKENS, URL_COMSOC, alias_busqueda
 
 TITULO = "¿Qui&eacute;n le paga a qui&eacute;n? &middot; Publicidad oficial federal"
 DESCRIPCION = ("Treemap interactivo del gasto federal mexicano en publicidad oficial: "
@@ -55,8 +55,13 @@ def construir_datos(df: pd.DataFrame) -> dict:
     if descartados:
         print(f"  [nota] {descartados:,} pares por debajo de 10 mil pesos: no se dibujan")
 
+    # Palabras extra para el buscador: sin esto, `imss` y `lotería` no encuentran
+    # nada, porque la homologación quita el acrónimo y renombra a LOTENAL.
+    siglas = alias_busqueda(b, "institucion", "institucion_canonica")
+    alias = [siglas.get(n, "") for n in nombres]
+
     anios = sorted(par.anio_fuente.unique().astype(int).tolist())
-    return {"nombres": nombres, "filas": filas, "anios": anios,
+    return {"nombres": nombres, "alias": alias, "filas": filas, "anios": anios,
             "meta": {"instituciones": int(b.institucion_canonica.nunique()),
                      "empresas": int(b.beneficiario_canonico.nunique()),
                      "total": round(float(b.monto_real.sum() / 1e6), 1)}}
@@ -93,6 +98,25 @@ select,button.btn{font-family:var(--font-body);font-size:14px;padding:8px 13px;b
 select:focus,button.btn:focus-visible{border-color:var(--accent);outline:none}
 button.btn:hover{border-color:var(--accent);color:var(--accent-deep)}
 button.btn[hidden]{display:none}
+
+.busca{position:relative;display:flex;align-items:center;min-width:238px}
+.busca input{width:100%;font-family:var(--font-body);font-size:14px;padding:8px 12px 8px 34px;
+  border-radius:10px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink)}
+.busca input::placeholder{color:var(--ink-3)}
+.busca input:focus{border-color:var(--accent);outline:none;
+  box-shadow:0 0 0 3px rgba(246,36,119,.14)}
+.busca .lupa{position:absolute;left:11px;width:15px;height:15px;stroke:var(--ink-3);
+  fill:none;stroke-width:2;pointer-events:none}
+#sug{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:70;margin:0;padding:5px;
+  list-style:none;background:var(--surface);border:1px solid var(--line-2);border-radius:11px;
+  box-shadow:0 10px 30px rgba(51,16,24,.16);max-height:min(58vh,380px);overflow-y:auto}
+#sug[hidden]{display:none}
+#sug li{padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13.5px;color:var(--ink-2);
+  display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+#sug li .mdp{font-family:var(--font-mono);font-size:12px;color:var(--ink-3);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+#sug li[aria-selected="true"],#sug li:hover{background:var(--surface-2);color:var(--ink)}
+#sug li.vacio{color:var(--ink-3);cursor:default;justify-content:flex-start}
 
 .ruta{padding:9px 22px;border-bottom:1px solid var(--line);flex:0 0 auto;background:var(--surface-2);
   display:flex;gap:9px;align-items:baseline;flex-wrap:wrap;min-height:40px}
@@ -137,6 +161,13 @@ CUERPO = """
       tama&ntilde;o es lo que erog&oacute;. <b>Da clic</b> para ver a qui&eacute;n le pag&oacute;.</p>
   </div>
   <div class="ctrl">
+    <div class="busca">
+      <svg class="lupa" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <input id="q" type="search" autocomplete="off" placeholder="Buscar instituci&oacute;n&hellip;"
+             aria-label="Buscar instituci&oacute;n" role="combobox" aria-expanded="false"
+             aria-controls="sug" aria-autocomplete="list">
+      <ul id="sug" role="listbox" hidden></ul>
+    </div>
     <select id="anio" aria-label="A&ntilde;o"></select>
     <button class="btn" id="volver" hidden>&larr; Todas las instituciones</button>
   </div>
@@ -347,6 +378,69 @@ function render(desde){
   dibuja(cells,total,esInst,desde);
 }
 
+/* ── buscador de instituciones ── */
+/* ̀-ͯ = marcas combinantes: "México" y "mexico" deben coincidir. */
+const pliega = s => s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+const NOM_PLEGADO = NOM.map((n,i)=>pliega(n+' '+(D.alias[i]||'')));
+const cajaQ=document.getElementById('q'), lista=document.getElementById('sug');
+let sugs=[], marcada=-1;
+
+/* La caja de una institución en el nivel raíz, para animar el zoom desde ella
+   aunque llegues por el buscador y no por un clic. */
+function cajaDe(id){
+  const datos=nivelInstituciones();
+  const cells=squarify(datos,W,H);
+  for(let i=0;i<datos.length;i++) if(datos[i].i===id) return cells[i];
+  return null;
+}
+function irA(id){
+  cierraSug(); cajaQ.value=''; cajaQ.blur();
+  if(animando) return;
+  const caja = inst===null ? cajaDe(id) : null;   /* si ya estás dentro, salta sin animar */
+  ultimaCaja = caja;
+  inst = id;
+  render(caja);
+}
+function cierraSug(){
+  lista.hidden=true; marcada=-1;
+  cajaQ.setAttribute('aria-expanded','false');
+}
+function pintaSug(){
+  const q=pliega(cajaQ.value.trim());
+  if(!q){ cierraSug(); return; }
+  sugs=nivelInstituciones().filter(d=>NOM_PLEGADO[d.i].indexOf(q)>=0).slice(0,40);
+  lista.innerHTML = sugs.length
+    ? sugs.map((d,k)=>'<li role="option" data-k="'+k+'" aria-selected="'+(k===marcada)+'">'+
+        '<span>'+d.n+'</span><span class="mdp">'+fmt1(d.v)+' MDP</span></li>').join('')
+    : '<li class="vacio">Ninguna institución con ese nombre en '+
+      (anioSel===''?'la serie':anioSel)+'</li>';
+  lista.hidden=false;
+  cajaQ.setAttribute('aria-expanded','true');
+  Array.prototype.forEach.call(lista.querySelectorAll('li[data-k]'),li=>{
+    li.addEventListener('mousedown',e=>{e.preventDefault(); irA(sugs[+li.dataset.k].i);});
+  });
+}
+function mueve(paso){
+  if(lista.hidden||!sugs.length) return;
+  marcada=(marcada+paso+sugs.length)%sugs.length;
+  Array.prototype.forEach.call(lista.querySelectorAll('li[data-k]'),(li,k)=>{
+    li.setAttribute('aria-selected',k===marcada);
+    if(k===marcada) li.scrollIntoView({block:'nearest'});
+  });
+}
+let tq;
+cajaQ.addEventListener('input',()=>{clearTimeout(tq);marcada=-1;tq=setTimeout(pintaSug,110);});
+cajaQ.addEventListener('focus',()=>{ if(cajaQ.value.trim()) pintaSug(); });
+cajaQ.addEventListener('blur',()=>setTimeout(cierraSug,120));
+cajaQ.addEventListener('keydown',e=>{
+  if(e.key==='ArrowDown'){e.preventDefault();mueve(1);}
+  else if(e.key==='ArrowUp'){e.preventDefault();mueve(-1);}
+  else if(e.key==='Enter'){
+    e.preventDefault();
+    if(sugs.length) irA(sugs[marcada>=0?marcada:0].i);
+  } else if(e.key==='Escape'){ cajaQ.value=''; cierraSug(); }
+});
+
 /* ── controles ── */
 document.getElementById('anio').innerHTML =
   '<option value="">Todos los años (2012–2025)</option>'+
@@ -359,7 +453,9 @@ document.getElementById('anio').addEventListener('change',e=>{
   render(null);
 });
 document.getElementById('volver').addEventListener('click',salir);
-addEventListener('keydown',e=>{ if(e.key==='Escape'&&inst!==null) salir(); });
+addEventListener('keydown',e=>{
+  if(e.key==='Escape' && inst!==null && document.activeElement!==cajaQ) salir();
+});
 
 let t;
 addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(()=>render(null),160);});
