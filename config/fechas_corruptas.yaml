@@ -1,0 +1,26 @@
+# Reparación de fechas de gasto corruptas.
+# Portado de legacy/R/1_digest.R:52-73, ahora como datos y no como código.
+
+# 1) Fechas serial de Excel que caen en años imposibles.
+#    El capturista tecleó el año mal; el desfase es sistemático.
+desfase_anios:
+  2026: -10    # 2026 -> 2016
+  2047: -30    # 2047 -> 2017
+  2103: -90    # 2103 -> 2013
+  2105: -90    # 2105 -> 2015
+
+# 2) Fechas capturadas como texto con el año mal escrito.
+#    Se aplica sobre el string crudo antes de parsear dd/mm/yyyy.
+#    (~35 observaciones en 2012-2023)
+sustituciones_anio:
+  "2012": ["0012", "1012"]
+  "2013": ["0013", "1013", "0213"]
+  "2014": ["0014", "0214", "0201", "0204"]
+  "2016": ["0216", "0016"]
+  "2017": ["0217", "0017", "2047"]
+  "2018": ["0018"]
+  "2021": ["0021"]
+
+# 3) Rango de validez. Cualquier fecha_gasto fuera de [anio_fuente-1, anio_fuente+1]
+#    se marca en el reporte de calidad en vez de corregirse a ciegas.
+tolerancia_anios: 1

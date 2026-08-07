@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "comsoc"
+version = "0.1.0"
+description = "Gasto en publicidad oficial del gobierno federal mexicano (COMSOC), 2012-2025"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0",
+    "openpyxl>=3.1",
+    "pyarrow>=14.0",
+    "PyYAML>=6.0",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+analisis = [
+    "plotnine>=0.13",     # ggplot2 en Python: la transición más directa desde R
+    "networkx>=3.0",      # redes institución <-> beneficiario
+    "rapidfuzz>=3.0",     # reconciliación de nombres de beneficiario
+    "scipy>=1.11",
+]
+dev = ["pytest>=7.0", "ruff>=0.4"]
+
+[project.scripts]
+comsoc-build = "comsoc.build:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

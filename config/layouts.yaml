@@ -1,0 +1,153 @@
+# Registro declarativo de layouts COMSOC
+#
+# Una entrada por (archivo, hoja). Agregar un año nuevo = agregar un bloque aquí.
+# `header_row` es 1-indexado y sirve como ASERCIÓN: el lector detecta el encabezado
+# automáticamente y compara contra este valor. Si no coincide, falla ruidosamente
+# en vez de producir basura silenciosa.
+#
+# generacion:  G1  = 2012-2023 preliminar (2 hojas, dos tipos de fila, encabezado fila 6)
+#              G1b = 2023 definitiva      (igual que G1 pero encabezado fila 7)
+#              G2  = 2024                 (4 hojas, un solo tipo de fila)
+#              G3  = 2025                 (4 hojas, + columna Núm. y panel de totales)
+# tipo:        polizas | ejercido
+# vintage:     definitiva | preliminar
+
+archivos:
+
+  # ---------------------------------------------------------------- G1
+  - archivo: Comsoc-12-Diciembre-2012_Definitivo.xlsx
+    anio: 2012
+    generacion: G1
+    vintage: definitiva
+    hojas:
+      - {indice: 1, nombre: "2012-12-Def_3600",  tipo: polizas, partida_grupo: "36101-36201", header_row: 6}
+      - {indice: 2, nombre: "2012-12-Def_33605", tipo: polizas, partida_grupo: "33605",       header_row: 6}
+
+  - archivo: comsoc_12_diciembre_2013_definitivo.xlsx
+    anio: 2013
+    generacion: G1
+    vintage: definitiva
+    hojas:
+      - {indice: 1, nombre: "Concepto 3600",  tipo: polizas, partida_grupo: "36101-36201", header_row: 6}
+      - {indice: 2, nombre: "Partida 33605",  tipo: polizas, partida_grupo: "33605",       header_row: 6}
+
+  - archivo: comsoc-12-dic-2014-definitivo.xlsx
+    anio: 2014
+    generacion: G1
+    vintage: definitiva
+    hojas:
+      - {indice: 1, nombre: "Concepto 3600 Defin Ejerc-2014", tipo: polizas, partida_grupo: "36101-36201", header_row: 6}
+      - {indice: 2, nombre: "Partida 33605 Defin Ejerc-2014", tipo: polizas, partida_grupo: "33605",       header_row: 6}
+
+  - archivo: Comsoc-12-Diciembre-2015-Definitivo.xlsx
+    anio: 2015
+    generacion: G1
+    vintage: definitiva
+    hojas:
+      - {indice: 1, nombre: "Concepto 3600 Dic-2015Definitvo", tipo: polizas, partida_grupo: "36101-36201", header_row: 6}
+      - {indice: 2, nombre: "P-33605 Dic-2015-Definitivo",     tipo: polizas, partida_grupo: "33605",       header_row: 6}
+
+  - archivo: "ComsocPólizas12Dic-2016Defin.xlsx"
+    anio: 2016
+    generacion: G1
+    vintage: definitiva
+    hojas:
+      - {indice: 1, nombre: "Pólizas C-3600 Dic-2016 Defin",  tipo: polizas, partida_grupo: "36101-36201", header_row: 6}
+      - {indice: 2, nombre: "Pólizas P-33605 Dic-2016 Defin", tipo: polizas, partida_grupo: "33605",       header_row: 6}
+
+  - archivo: "Comsoc Pólizas 12 Defin_Diciembre-2017 Transp VF.xlsx"
+    anio: 2017
+    generacion: G1
+    vintage: definitiva
+    hojas:
+      - {indice: 1, nombre: "Concepto 3600 Dic-2017 Definit", tipo: polizas, partida_grupo: "36101-36201", header_row: 6}
+      - {indice: 2, nombre: "Partida 33605 Dic-2017 Definit", tipo: polizas, partida_grupo: "33605",       header_row: 6}
+
+  # OJO: este archivo trae 37 columnas (columnas extra vacías al final). Se mapea por nombre.
+  - archivo: "Comsoc_Pólizas_Transp 12_Diciembre-2018_Defin.xlsx"
+    anio: 2018
+    generacion: G1
+    vintage: definitiva
+    hojas:
+      - {indice: 1, nombre: "Concepto 3600 Ene-Dic 2018 DEF", tipo: polizas, partida_grupo: "36101-36201", header_row: 6}
+      - {indice: 2, nombre: "Partida 33605 Ene-Dic 2018 DEF", tipo: polizas, partida_grupo: "33605",       header_row: 6}
+
+  - archivo: Base_de_datos_Polizas_12_Diciembre-2019_Definitivo_Transp.xlsx
+    anio: 2019
+    generacion: G1
+    vintage: definitiva
+    hojas:
+      - {indice: 1, nombre: "Pólizas C-3600 Dic-2019 Defini",  tipo: polizas, partida_grupo: "36101-36201", header_row: 6}
+      - {indice: 2, nombre: "Pólizas P-33605 Dic-2019 Defini", tipo: polizas, partida_grupo: "33605",       header_row: 6}
+
+  - archivo: Comsoc_P_lizas_12_Diciembre_2020_Trnsp_Def.xlsx
+    anio: 2020
+    generacion: G1
+    vintage: definitiva
+    hojas:
+      - {indice: 1, nombre: "Pólizas C-3600 Dic-2020",   tipo: polizas, partida_grupo: "36101-36201", header_row: 6}
+      - {indice: 2, nombre: "Pólizas P-33605 Dic-2020 ", tipo: polizas, partida_grupo: "33605",       header_row: 6}
+
+  - archivo: Comsoc_Po_lizas_Trans_12_Diciembre_2021.xlsx
+    anio: 2021
+    generacion: G1
+    vintage: definitiva
+    hojas:
+      - {indice: 1, nombre: "Pólizas C-3600 Diciembre-2021",  tipo: polizas, partida_grupo: "36101-36201", header_row: 6}
+      - {indice: 2, nombre: "Pólizas P-33605 Diciembre-2021", tipo: polizas, partida_grupo: "33605",       header_row: 6}
+
+  - archivo: Comsoc_Po_lizas_Transp_12_DICIEMBRE_2022.xlsx
+    anio: 2022
+    generacion: G1
+    vintage: definitiva
+    hojas:
+      - {indice: 1, nombre: "Pólizas C-3600 DICIEMBRE-2022",  tipo: polizas, partida_grupo: "36101-36201", header_row: 6}
+      - {indice: 2, nombre: "Pólizas P-33605 DICIEMBRE-2022", tipo: polizas, partida_grupo: "33605",       header_row: 6}
+
+  # ------------------------------------------------- 2023: DOS ediciones
+  # Preliminar (corte 17-ene-2024, 10,752 filas). NO es la canónica.
+  - archivo: Comsoc_Po_lizas_Transp_DICIEMBRE_2023_COM.xlsx
+    anio: 2023
+    generacion: G1
+    vintage: preliminar
+    hojas:
+      - {indice: 1, nombre: "Pólizas C-3600 DICIEMBRE-2023",  tipo: polizas, partida_grupo: "36101-36201", header_row: 6}
+      - {indice: 2, nombre: "Pólizas P-33605 DICIEMBRE-2023", tipo: polizas, partida_grupo: "33605",       header_row: 6}
+
+  # Definitiva (15,353 filas, +43%). Ésta es la canónica.
+  # BUG DE LA FUENTE: la columna Partida perdió el primer dígito (6101 en vez de 36101,
+  # 3605 en vez de 33605). Se repara en clean.reparar_partida().
+  - archivo: P_lizas_COMSOC_enero-diciembre_2023.xlsx
+    anio: 2023
+    generacion: G1b
+    vintage: definitiva
+    hojas:
+      - {indice: 1, nombre: "Pólizas_3600 Diciembre-23",  tipo: polizas, partida_grupo: "36101-36201", header_row: 7}
+      - {indice: 2, nombre: "Pólizas_33605 Diciembre-23", tipo: polizas, partida_grupo: "33605",       header_row: 7}
+
+  # ---------------------------------------------------------------- G2
+  - archivo: Ejercido_P_lizasCOMSOC__Enero_a_diciembre_2024.xlsx
+    anio: 2024
+    generacion: G2
+    vintage: definitiva
+    hojas:
+      - {indice: 1, nombre: "Ejercido 36101-36201 Ene-Dic", tipo: ejercido, partida_grupo: "36101-36201", header_row: 9}
+      - {indice: 2, nombre: "Pólizas 36101-36201 Ene-Dic",  tipo: polizas,  partida_grupo: "36101-36201", header_row: 8}
+      - {indice: 3, nombre: "Ejercido 33605 Ene-Dic",       tipo: ejercido, partida_grupo: "33605",       header_row: 9}
+      - {indice: 4, nombre: "Pólizas 33605 Ene-Dic",        tipo: polizas,  partida_grupo: "33605",       header_row: 9}
+
+  # ---------------------------------------------------------------- G3
+  # Las hojas de pólizas traen un panel de totales incrustado (C8:D10) ANTES del
+  # encabezado real. Se usa como cifra de control en validate.py.
+  - archivo: COMSOC_ejercido_enero-diciembre_2025.xlsx
+    anio: 2025
+    generacion: G3
+    vintage: definitiva
+    control:
+      "33605":       {monto: 46359752.98,   iva: 4958995.15}
+      "36101-36201": {monto: 3702598799.12, iva: 592232269.46}
+    hojas:
+      - {indice: 1, nombre: "Ejercido 33605 Dic",            tipo: ejercido, partida_grupo: "33605",       header_row: 10}
+      - {indice: 2, nombre: "Pólizas 33605 Ene-Dic",         tipo: polizas,  partida_grupo: "33605",       header_row: 13}
+      - {indice: 3, nombre: "Ejercido 36101-36201 Ene-Dic",  tipo: ejercido, partida_grupo: "36101-36201", header_row: 10}
+      - {indice: 4, nombre: "Pólizas 36101-36201 Ene-Dic",   tipo: polizas,  partida_grupo: "36101-36201", header_row: 13}

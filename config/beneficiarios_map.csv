@@ -1,0 +1,42 @@
+orden,tipo,patron,canonico,nota
+10,reemplazo,"\, s\.a\. de c\.v\.","",quita sufijo de razón social
+11,reemplazo," s\.a\. de c\.v\.","",quita sufijo de razón social
+12,reemplazo," sa de cv","",quita sufijo de razón social
+100,regex,televisa,Televisa,
+101,regex,demos|jornada,La Jornada,
+102,regex,azteca,TV Azteca,
+103,regex,especializado en economia|el economista,El Economista,
+104,regex,el financiero,El Financiero,
+105,regex,agencia digital|milenio,Milenio,
+106,regex,imagen|image|cadena tres i,Imagen,
+107,regex,universal,El Universal,
+108,regex,5m2|cinco m,5M2,
+109,regex,formula|pm onstreet,Grupo Fórmula,
+110,regex,radiodifusores mexicanos indep,Radiodifusores Mexicanos Ind.,
+111,regex,organizacion editorial mexicana,OEM,
+112,regex,mm on line,MM Online,
+113,regex,reforma,Reforma / El Norte,
+114,regex,editorial del golfo,Org. Editorial del Golfo,
+115,regex,radio publicidad xhmexico|radio centro,Grupo Radio Centro,
+116,regex,gim compania editorial|excelsior,Excélsior,
+117,regex,compania editora del mayab|centro de cultura nuestra america,Cía. Ed. del Mayab,
+118,regex,ap&h communication group,AP&H Comm. Group,
+119,regex,b grande,La B Grande,
+120,regex,stereorey mexico,Stereorey,
+121,regex,radio y television de hidalgo,Radio y Televisión de Hidalgo,fusiona las 2 reglas del R que se partían por acento
+122,regex,\bisa ,ISA Corporativo,RIESGOSA: patrón muy corto (ver reporte de entidades)
+123,regex,organizacion editorial acuario,Org. Editorial Acuario,
+124,regex,medios masivos mexicanos,Medios Masivos Mexicanos,
+125,regex,\bimu\b,Comercializadora IMU,RIESGOSA en el original (era "imu" sin límites de palabra)
+126,regex,edicion y publicidad (?:de|en) medios de los estados,EyPME,fusiona las 2 reglas del R
+127,regex,operadora mexicana de television,Canal 40,
+128,regex,promotur|starcom,PROMOTUR / STARCOM,
+129,regex,pergom,PERGOM,
+130,regex,radio mil,Núcleo Radio Mil,
+131,regex,sistema publico de radio,SPR,
+132,regex,instituto mexicano de la radio,IMER,
+133,regex,sociedad mexicana,Soc. Mex. de la Radio,RIESGOSA: patrón genérico
+134,regex,operadora y administradora de infor macion y editorial|heraldo,El Heraldo,
+135,regex,capital news|mac ediciones,Capital News,
+136,regex,radios comunitarias,AMARC,
+200,reemplazo,Televisión,TV,post-regla del R

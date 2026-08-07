@@ -1,0 +1,33 @@
+# Datos — se versiona el código y la configuración, no los datos.
+data/raw/
+data/interim/
+data/processed/
+reports/*.csv
+reports/*.parquet
+
+# Legado en R: se conserva en disco como referencia de validación,
+# pero los binarios pesados no van al repo (.RData 19 MB, CSV 140 MB).
+legacy/.RData
+legacy/.Rhistory
+legacy/clean_data/
+
+# El sitio (docs/index.html) SÍ se versiona: es lo que publica GitHub Pages.
+# El fragmento es solo para previsualizar, no se versiona.
+docs/_fragmento.html
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+
+# R
+.Rproj.user/
+
+# SO
+Thumbs.db
+.DS_Store

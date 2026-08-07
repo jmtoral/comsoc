@@ -1,0 +1,85 @@
+# Mapeo de columnas fuente -> esquema canónico, POR GENERACIÓN.
+#
+# Las llaves son el nombre de la columna en el Excel ya normalizado:
+# minúsculas, sin acentos, sin puntuación, espacios colapsados.
+# (ver comsoc.schema.normalizar_nombre)
+#
+# Se mapea SIEMPRE por nombre, nunca por posición: el número de columnas
+# varía dentro de una misma generación (2020:26, 2019/21/22/23:27, 2012-16:28, 2018:37).
+#
+# ¡Ojo con las dos trampas! Son la razón de que este mapeo sea por generación:
+#
+#   1. "iva"  -> en G1 es el IVA de la FACTURA (va con Importe).
+#               en G2/G3 es el IVA del RENGLÓN (va con Monto).
+#   2. "clase de beneficiario" -> en G1 es un código (P/R).
+#               en G2 esa misma columna trae el TIPO DE MEDIO
+#               ("DIARIOS EDITADOS EN LA CIUDAD DE MÉXICO", "INTERNET").
+
+comun: &comun
+  sector:                     sector
+  mes:                        mes
+  fecha de gasto:             fecha_gasto
+  partida:                    partida
+  poliza:                     poliza
+  no de contrato pedido:      contrato
+  fecha de contrato pedido:   fecha_contrato
+  fecha de contrato:          fecha_contrato
+  persona f m:                persona
+  cantidad:                   cantidad
+  costo unitario:             costo_unitario
+
+G1:
+  <<: *comun
+  tipo institucion:           tipo_institucion
+  entidad:                    clave_entidad
+  nombre:                     institucion
+  cons:                       consecutivo
+  producto:                   producto_clave
+  descripcion producto:       producto_desc
+  importe:                    importe_factura      # nivel FACTURA
+  iva:                        iva_factura          # nivel FACTURA
+  clase de beneficiario:      clase_beneficiario   # código P/R
+  rfcb:                       rfc_beneficiario     # sólo 2012-2016
+  beneficiario:               beneficiario
+  campana:                    campana_clave
+  intercambio:                intercambio
+  unidad de medida:           unidad
+  descripcion unidad:         unidad_desc
+  costo:                      monto                # nivel RENGLÓN
+  iva del costo:              iva                  # nivel RENGLÓN
+  notas aclaratorias:         notas
+
+G2:
+  <<: *comun
+  clave de la entidad:        clave_entidad
+  institucion:                institucion
+  clave del producto:         producto_clave
+  descripcion del producto:   producto_desc
+  clase de beneficiario:      clase_medio          # ¡cambió de significado!
+  rfcb:                       rfc_beneficiario
+  nombre del proveedor:       beneficiario
+  clave de campana:           campana_clave
+  nombre de campana:          campana_nombre
+  tipo de poliza:             tipo_poliza
+  unidad de medida:           unidad
+  descripcion de la unidad:   unidad_desc
+  monto:                      monto
+  iva:                        iva                  # nivel RENGLÓN
+
+G3:
+  <<: *comun
+  num:                        fila_num             # índice del reporte, NO es 'Cons.'
+  clave:                      clave_entidad
+  denominacion de la institucion: institucion
+  clave del producto:         producto_clave
+  descripcion del producto:   producto_desc
+  clase de proveedor:         clase_medio
+  proveedor rfc:              rfc_beneficiario
+  nombre del proveedor:       beneficiario
+  clave de campana:           campana_clave
+  nombre de campana:          campana_nombre
+  tipo de poliza:             tipo_poliza
+  unidad de medida:           unidad
+  descripcion de la unidad:   unidad_desc
+  monto:                      monto
+  iva:                        iva                  # nivel RENGLÓN
