@@ -27,6 +27,7 @@ import json
 import re
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from .config import DOCS_DIR, POLIZAS_PARQUET, asegurar_directorios
@@ -117,10 +118,35 @@ def construir_datos(df: pd.DataFrame) -> dict:
     tabla = {"nombres": nom, "alias": alias,
              "filas": [[f[0], f[1], ind[f[2]], f[3], f[4], f[5], f[6], f[7]] for f in filas]}
 
+    # Concentración de proveedores por institución. Se precalcula porque hacerlo en
+    # el navegador obligaría a embarcar el cruce completo institución x empresa.
+    par = (b.groupby(["anio_fuente", "institucion_canonica", "beneficiario_canonico"],
+                     observed=True)["monto_real"].sum())
+    escenarios = {"": par.groupby(level=[1, 2]).sum()}
+    for anio, g in par.groupby(level=0):
+        escenarios[str(int(anio))] = g.droplevel(0)
+
+    conc = {}
+    for clave, serie_ in escenarios.items():
+        filas_c = []
+        for institucion, grupo in serie_.groupby(level=0):
+            v = np.sort(grupo.to_numpy())[::-1]
+            total = float(v.sum())
+            if total <= 0:
+                continue
+            sh = v / total
+            filas_c.append([ind[institucion], round(total / 1e6, 2), int(len(v)),
+                            round(100 * float(sh[0]), 1),
+                            round(100 * float(sh[:3].sum()), 1),
+                            round(100 * float(sh[:5].sum()), 1),
+                            int(round(10000 * float((sh ** 2).sum())))])
+        conc[clave] = filas_c
+
     return {"serie": serie,
             "instituciones": treemap(**PANELES["instituciones"]),
             "beneficiarios": treemap(**PANELES["beneficiarios"]),
             "tabla": tabla,
+            "conc": conc,
             "meta": {"renglones": int(len(b)), "polizas": int(b.poliza_id.nunique()),
                      "total_real": round(float(b.monto_real.sum() / 1e6), 1)}}
 
@@ -289,6 +315,27 @@ td:first-child{font-family:var(--font-body);color:var(--ink)}
   font-variant-numeric:tabular-nums}
 .vacio{text-align:center;padding:32px 12px;color:var(--ink-3);font-size:14.5px}
 
+/* ── concentración ── */
+.conc-cab,.conc-fila{display:grid;grid-template-columns:minmax(150px,1.6fr) minmax(120px,2.2fr) 58px 72px 92px;
+  gap:12px;align-items:center}
+.conc-cab{font-family:var(--font-display);font-size:11px;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--ink-3);font-weight:600;padding:0 4px 8px;
+  border-bottom:1px solid var(--line-2)}
+.conc-cab .der,.conc-fila .der{text-align:right}
+.conc-scroll{max-height:min(70vh,620px);overflow-y:auto;overflow-x:hidden;padding-right:4px}
+.conc-fila{padding:5px 4px;border-bottom:1px solid var(--line);font-size:13px}
+.conc-fila:hover{background:var(--surface-2)}
+.conc-fila .nombre{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.conc-fila .pista{height:15px;background:var(--line);border-radius:4px;overflow:hidden}
+.conc-fila .pista i{display:block;height:100%;border-radius:4px}
+.conc-fila .num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--ink-2);
+  text-align:right}
+.conc-fila .num.fuerte{color:var(--ink);font-weight:600}
+@media (max-width:640px){
+  .conc-cab,.conc-fila{grid-template-columns:minmax(110px,1.4fr) minmax(70px,1.6fr) 50px 58px}
+  .conc-cab span:last-child,.conc-fila .mdp{display:none}
+}
+
 .notes{background:var(--surface-2);border:1px solid var(--line-2);border-radius:16px;padding:24px}
 .notes h2{font-size:20px;margin-bottom:14px}
 .notes ul{margin:0;padding-left:0;list-style:none;display:grid;gap:12px}
@@ -370,6 +417,50 @@ CUERPO = """
       Un treemap de pantalla completa donde cada caja es una instituci&oacute;n y, al darle clic,
       se abren las empresas que recibieron su dinero.
     </p>
+  </section>
+
+  <section>
+    <h2>Qu&eacute; tan concentrado est&aacute; el gasto de cada instituci&oacute;n</h2>
+    <p class="sub">Qu&eacute; porcentaje del dinero de cada instituci&oacute;n se lo llev&oacute;
+      su proveedor m&aacute;s grande, de la m&aacute;s concentrada a la menos.
+      El <b>largo de la barra</b> es esa concentraci&oacute;n; el <b>color</b> es cu&aacute;nto
+      gasta la instituci&oacute;n, para distinguir a las grandes de las peque&ntilde;as.</p>
+    <p class="aviso">
+      <b>Concentrarse no siempre significa lo mismo.</b> Una instituci&oacute;n que solo le
+      compr&oacute; a un proveedor sale con 100% y encabeza la lista, aunque haya gastado muy
+      poco. Fíjate en la columna de <b>proveedores</b> y en el color: una barra larga y clara,
+      con dos o tres proveedores, es una instituci&oacute;n chica, no una capturada.
+    </p>
+    <div class="card">
+      <div class="filtros">
+        <select id="cMetrica" aria-label="Medida de concentraci&oacute;n">
+          <option value="3">Proveedor m&aacute;s grande</option>
+          <option value="4">Tres proveedores m&aacute;s grandes</option>
+          <option value="5">Cinco proveedores m&aacute;s grandes</option>
+        </select>
+        <select id="cUmbral" aria-label="Gasto m&iacute;nimo">
+          <option value="1">Con m&aacute;s de 1 MDP</option>
+          <option value="10">Con m&aacute;s de 10 MDP</option>
+          <option value="50">Con m&aacute;s de 50 MDP</option>
+          <option value="100">Con m&aacute;s de 100 MDP</option>
+        </select>
+        <select id="cAnio" aria-label="A&ntilde;o"></select>
+      </div>
+      <p class="cuenta" id="cCuenta"></p>
+      <div class="legend" style="margin:0 0 12px">
+        <span class="lbl">Gasta menos</span>
+        <span class="ramp">
+          <i style="background:var(--r1)"></i><i style="background:var(--r2)"></i>
+          <i style="background:var(--r3)"></i><i style="background:var(--r4)"></i>
+        </span>
+        <span class="lbl">Gasta m&aacute;s</span>
+      </div>
+      <div class="conc-cab">
+        <span>Instituci&oacute;n</span><span>Concentraci&oacute;n</span>
+        <span class="der">%</span><span class="der">Proveed.</span><span class="der">MDP 2020</span>
+      </div>
+      <div class="conc-scroll" id="cLista"></div>
+    </div>
   </section>
 
   <section>
@@ -642,8 +733,53 @@ function selAnio(a){
     '<th>Renglones</th><th style="text-align:left">Sexenio</th></tr></thead><tbody>'+rows+'</tbody>';
 })();
 
-/* ── buscador ───────────────────────────────────────────────────────── */
+/* ── concentración de proveedores ───────────────────────────────────── */
+/* El diccionario de nombres se comparte con el buscador, así que se declara aquí,
+   antes del primer uso: `const` no se puede leer antes de su línea. */
 const T = DATA.tabla;
+/* Fila: [idxNombre, totalMDP, nProveedores, cr1, cr3, cr5, hhi] */
+const CONC = DATA.conc;
+
+function pintaConc(){
+  const met = +document.getElementById('cMetrica').value;
+  const umb = +document.getElementById('cUmbral').value;
+  const an  = document.getElementById('cAnio').value;
+  const filas = (CONC[an]||[]).filter(f=>f[1] > umb).slice().sort((a,b)=>b[met]-a[met]);
+
+  const maxGasto = filas.reduce((m,f)=>Math.max(m,f[1]),0);
+  const cuantos = met===3?'su proveedor más grande':met===4?'sus 3 proveedores más grandes':'sus 5 proveedores más grandes';
+  const mediana = filas.length ? filas[Math.floor(filas.length/2)][met] : 0;
+  document.getElementById('cCuenta').innerHTML =
+    filas.length
+      ? '<b>'+fmt(filas.length)+'</b> instituciones · la mediana le da <b>'+
+        mediana.toFixed(1)+'%</b> de su dinero a '+cuantos
+      : 'Ninguna institución supera ese umbral en ese año';
+
+  document.getElementById('cLista').innerHTML = filas.map(f=>{
+    const paso = tono(f[1], maxGasto);
+    const nom = T.nombres[f[0]];
+    const tit = nom+' — '+f[3].toFixed(1)+'% al mayor, '+f[4].toFixed(1)+'% a los 3 mayores, '+
+      f[5].toFixed(1)+'% a los 5 mayores · '+fmt(f[2])+' proveedores · '+
+      fmt1(f[1])+' MDP · HHI '+fmt(f[6]);
+    return '<div class="conc-fila" title="'+tit.replace(/"/g,'&quot;')+'">'+
+      '<span class="nombre">'+nom+'</span>'+
+      '<span class="pista"><i style="width:'+f[met].toFixed(1)+'%;background:var(--r'+paso+')"></i></span>'+
+      '<span class="num fuerte der">'+f[met].toFixed(1)+'</span>'+
+      '<span class="num der">'+fmt(f[2])+'</span>'+
+      '<span class="num der mdp">'+fmt1(f[1])+'</span></div>';
+  }).join('');
+}
+
+(function initConc(){
+  document.getElementById('cAnio').innerHTML =
+    '<option value="">Todos los años (2012–2025)</option>'+
+    serie.map(d=>'<option value="'+d.anio+'">'+d.anio+'</option>').join('');
+  ['cMetrica','cUmbral','cAnio'].forEach(id=>
+    document.getElementById(id).addEventListener('change',pintaConc));
+  pintaConc();
+})();
+
+/* ── buscador ───────────────────────────────────────────────────────── */
 /* ̀-ͯ = marcas combinantes: "México" y "mexico" deben coincidir. */
 const pliega = s => s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
 /* Índice de búsqueda = nombre + siglas. Se calcula una sola vez. */

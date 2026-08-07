@@ -25,6 +25,17 @@
   color-scheme:light;
 }
 
+/* Segunda rampa, ámbar, para el nivel de empresas: al bajar cambia el color y se
+   nota que cambiaste de nivel, no solo de cajas.
+   Elegida sobre verde azulado y ciruela porque es la única que pasa el criterio
+   ordinal sobre el fondo crema (ΔL 0.088/0.091/0.081, paso claro a 2.38 de
+   contraste) y a la vez es la más separable de la rampa rosa: ΔE 14.9 en visión
+   normal y 5.5 bajo daltonismo, contra 9.7 de la ciruela.
+   El verde azulado quedaba en 1.80 de contraste, por debajo del piso de 2.0. */
+:root{
+  --a1:#D8930F; --a2:#B8790A; --a3:#966006; --a4:#7A4A02;
+  --on-a1:#331018; --on-a2:#331018; --on-a3:#FFFCF4; --on-a4:#FFFCF4;
+}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);
@@ -191,13 +202,14 @@ function dibuja(cells,total,esInstitucion,desde){
   svg.textContent='';
   const max=cells.length?cells[0].v:1;
   const nodos=[];
+  const fam = esInstitucion ? 'r' : 'a';   /* rosa: instituciones · ámbar: empresas */
   cells.forEach(c=>{
     const paso=tono(c.v,max);
     const g=el('g',{class:'cel'+(esInstitucion?' click':'')});
-    const r=el('rect',{rx:3,fill:css('--r'+paso)});
+    const r=el('rect',{rx:3,fill:css('--'+fam+paso)});
     g.appendChild(r);
-    const t1=el('text',{class:'nom',fill:css('--on-r'+paso)});
-    const t2=el('text',{class:'val',fill:css('--on-r'+paso)});
+    const t1=el('text',{class:'nom',fill:css('--on-'+fam+paso)});
+    const t2=el('text',{class:'val',fill:css('--on-'+fam+paso)});
     g.appendChild(t1); g.appendChild(t2);
 
     const pct=(100*c.v/total).toFixed(1);
