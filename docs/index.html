@@ -24,6 +24,7 @@
   --font-mono:ui-monospace,'Cascadia Mono','Segoe UI Mono','SF Mono',Consolas,monospace;
   color-scheme:light;
 }
+
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);
@@ -95,6 +96,13 @@ svg{display:block;width:100%;height:auto}
 .cell:hover{opacity:.84}
 .cell-name{font-family:var(--font-body);font-size:10.5px;font-weight:600;pointer-events:none}
 .cell-val{font-family:var(--font-mono);font-size:9.5px;pointer-events:none;font-variant-numeric:tabular-nums}
+
+.salto{margin:20px 0 0;padding:16px 18px;border-radius:14px;background:var(--surface-2);
+  border:1px solid var(--line-2);border-left:3px solid var(--accent);
+  font-size:14.5px;color:var(--ink-2);line-height:1.5}
+.salto a{font-family:var(--font-display);font-weight:700;font-size:16px;
+  color:var(--accent-deep);text-decoration:none;border-bottom:2px solid var(--soft-pink)}
+.salto a:hover{border-color:var(--accent)}
 
 .legend{display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
 .legend .lbl{font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;
@@ -235,6 +243,12 @@ td:first-child{font-family:var(--font-body);color:var(--ink)}
         <div class="tbl-scroll"><table id="tblAnio"></table></div>
       </details>
     </div>
+
+    <p class="salto">
+      <a href="quien-paga-a-quien.html">&iquest;Qui&eacute;n le paga a qui&eacute;n?</a>
+      Un treemap de pantalla completa donde cada caja es una instituci&oacute;n y, al darle clic,
+      se abren las empresas que recibieron su dinero.
+    </p>
   </section>
 
   <section>

@@ -1,6 +1,9 @@
 # COMSOC — Publicidad oficial del gobierno federal mexicano
 
-**Reporte interactivo → <https://jmtoral.github.io/comsoc/>**
+- **Reporte interactivo → <https://jmtoral.github.io/comsoc/>**
+- **¿Quién le paga a quién? → <https://jmtoral.github.io/comsoc/quien-paga-a-quien.html>**
+  Treemap de pantalla completa: clic en una institución y se abren las empresas que
+  recibieron su dinero.
 
 Dataset unificado de **pólizas** de gasto en comunicación social, 2012–2025, a partir de los
 Excel que publica la Secretaría Anticorrupción y Buen Gobierno (antes SFP).
@@ -40,6 +43,7 @@ trampas que rompen las cifras en silencio.
 │   ├── validate.py            pruebas de aceptación
 │   ├── export.py              exportación a parquet / CSV
 │   ├── reporte.py             genera docs/index.html (sitio autocontenido)
+│   ├── zoom.py                genera docs/quien-paga-a-quien.html (treemap con zoom)
 │   └── build.py               pipeline completo (CLI)
 ├── data/
 │   ├── raw/                   los 15 .xlsx originales

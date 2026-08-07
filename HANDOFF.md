@@ -235,7 +235,27 @@ rampa `#FB7EBC → #F62477 → #C4104F → #92003A`, ΔL 0.116 / 0.108 / 0.107 s
 0.06. `#FFADEE` (L 0.85) y `#FFE185` (L 0.92) están muy por encima de la banda para ser marcas:
 se usan solo como fondo y realce. Tema único claro sobre crema `#FBF5E6`, deliberado.
 
-### 3.9 Entorno: conda local
+### 3.9 «¿Quién le paga a quién?» (`zoom.py`)
+
+`python -m comsoc.zoom` genera **`docs/quien-paga-a-quien.html`**, página independiente del
+reporte: un treemap a pantalla completa donde cada caja es una institución y, al darle clic, las
+empresas que recibieron su dinero **crecen desde esa misma caja** hasta llenar el lienzo.
+
+La animación interpola las coordenadas de cada celda en vez de aplicar un `transform` al grupo:
+así el texto no se deforma al escalar y no depende de cómo cada navegador resuelva
+`transform-box` en SVG. Al volver, las instituciones se despliegan desde la caja donde estabas.
+
+Lleva el cruce **completo** institución × empresa × año: 45,763 tripletas, 1,122 KB / **257 KB con
+gzip**. No se recorta la cola porque es justo lo que hace interesante el zoom — el IMSS le pagó a
+**705 empresas distintas**.
+
+Se descartan 785 pares por debajo de 10 mil pesos (1.7 MDP de 97,090, un 0.0018%): al redondear a
+2 decimales quedaban en 0.00 y una celda de área cero hace dividir entre cero al squarify.
+
+Geometría verificada con los datos reales: 15 layouts de instituciones × 4 tamaños de pantalla y
+2,057 de empresas × 2, **sin un solo desborde ni traslape**.
+
+### 3.10 Entorno: conda local
 
 Se descartó Colab. Todo corre en local sobre **`pnt_analysis`**, environment **reutilizado** de
 otro proyecto del mismo dominio: Python 3.12.3, pandas 2.2.2, pyarrow 16.1, plotnine 0.13.6,
@@ -244,10 +264,10 @@ networkx, scipy, matplotlib, ipykernel. Se le agregaron `openpyxl`, `pyyaml` y `
 Intérprete: `C:\Users\User\anaconda3\envs\pnt_analysis\python.exe`. `conda` no está en el PATH.
 Correr siempre con `-X utf8`.
 
-### 3.10 Código
+### 3.11 Código
 
 `src/comsoc/`: `config`, `layouts`, `schema`, `ingest`, `clean`, `entities`, `ids`, `deflate`,
-`validate`, `export`, `reporte`, `build`.
+`validate`, `export`, `reporte`, `zoom`, `build`.
 `config/`: `layouts.yaml`, `columnas.yaml`, `beneficiarios_map.csv`, `instituciones_map.csv`,
 `deflactor.csv`, `fechas_corruptas.yaml`.
 Más `pyproject.toml`, `.gitignore`, `README.md`, `notebooks/00_construir_dataset.ipynb`,
