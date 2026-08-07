@@ -1,14 +1,53 @@
 # COMSOC — Publicidad oficial del gobierno federal mexicano
 
 - **Reporte interactivo → <https://jmtoral.github.io/comsoc/>**
+  Serie anual, medios en el tiempo, campañas, concentración de proveedores y buscador.
 - **¿Quién le paga a quién? → <https://jmtoral.github.io/comsoc/quien-paga-a-quien.html>**
-  Treemap de pantalla completa: clic en una institución y se abren las empresas que
-  recibieron su dinero.
+  Treemap de pantalla completa: clic en una institución y se abren las empresas que cobraron.
+- **¿En qué medios? → <https://jmtoral.github.io/comsoc/medios.html>**
+  Lo mismo por familia de medio, con desglose por producto.
 
 Dataset unificado de **pólizas** de gasto en comunicación social, 2012–2025, a partir de los
 Excel que publica la Secretaría Anticorrupción y Buen Gobierno (antes SFP).
 
 Análisis y elaboración: **Manuel Toral**.
+
+---
+
+## De dónde viene esto
+
+Este proyecto empezó en **R, en 2024**, y cubría 2012–2023: cinco scripts que leían doce Excel,
+los apilaban y producían una serie del gasto federal en publicidad oficial más siete gráficas.
+Funcionaba. Ese código sigue aquí, intacto, en [`legacy/`](legacy/) — no como museo, sino porque
+es la **referencia de validación**: una de las pruebas de aceptación compara las cifras nuevas
+contra la salida de aquel pipeline.
+
+Al querer actualizarlo aparecieron tres problemas que no se arreglaban con un par de líneas:
+
+1. **Llegaron 2024 y 2025 con otro formato.** No eran «algunos campos distintos»: son tres
+   generaciones incompatibles. Las hojas pasaron de 2 a 4, la fila del encabezado se movió
+   6 → 7 → 8 → 9 → 10 → 13, y el número de columnas varía entre 22 y 37 según el año.
+2. **Los años nuevos metieron todo en pestañas**, y dos de las cuatro no son pólizas sino
+   presupuesto agregado. Mezclarlas habría contado el gasto dos veces.
+3. **Para 2023 había dos archivos**, ediciones distintas del mismo ejercicio, sin saber cuál usar.
+
+Al migrar salieron además cosas que el pipeline en R no podía ver, porque solo llegaba a 2023:
+
+- Cada hoja de 2012–2023 **apila dos tipos de fila** con el mismo dinero a dos granularidades.
+  El código en R lo resolvía por accidente, con un filtro que quitaba justo las filas correctas
+  sin que nadie supiera por qué. Sumarlas sin separarlas duplica el gasto al 200%.
+- La regla de reparación de fechas heredada del R **arruinaba 1,003 filas de 2025**: convertía
+  fechas de 2026 en 2016, lo correcto para un archivo de 2016 y falso para uno cuyo corte es
+  junio de 2026.
+- La regla de homologación de CONDUSEF exigía acentos, y **679 renglones vienen sin ellos**:
+  media institución quedaba fuera de su propio grupo, sin que nada lo señalara.
+
+El diagnóstico completo, con las cifras que lo sostienen, está en
+[PLAN_MIGRACION.md](PLAN_MIGRACION.md). Qué se hizo y qué falta, en [HANDOFF.md](HANDOFF.md).
+
+**El principio que ordena todo el rediseño:** lo específico de cada año vive en `config/`, no en
+el código. No hay un solo `if anio == ...`. Dar de alta 2026 debería ser agregar un bloque de
+YAML, no tocar el pipeline.
 
 Migración del pipeline original en R (`legacy/R/`) a Python, con el objetivo de **detectar
 comportamientos en el gasto en publicidad oficial**.
@@ -66,11 +105,14 @@ trampas que rompen las cifras en silencio.
 
 | Archivo | Tamaño | Para quién |
 |---|---:|---|
-| [`comsoc_polizas.csv.gz`](https://jmtoral.github.io/comsoc/datos/comsoc_polizas.csv.gz) | 15.5 MB | Excel, R, pandas, Stata |
-| [`comsoc_polizas.parquet`](https://jmtoral.github.io/comsoc/datos/comsoc_polizas.parquet) | 11.6 MB | Python o R, con tipos |
+| [`comsoc_polizas_csv.zip`](https://jmtoral.github.io/comsoc/datos/comsoc_polizas_csv.zip) | 15.7 MB | Excel, R, pandas, Stata |
+| [`comsoc_polizas.parquet`](https://jmtoral.github.io/comsoc/datos/comsoc_polizas.parquet) | 11.7 MB | Python o R, con tipos |
 
-196,480 renglones × 56 columnas, 2012–2025. El reporte incluye el diccionario de columnas y un
-tercer botón que genera al vuelo el resumen por entidad y año (13,894 filas).
+196,480 renglones × 58 columnas, 2012–2025. El reporte incluye el diccionario completo de las 58
+columnas y un tercer botón que genera al vuelo el resumen por entidad y año (13,894 filas).
+
+Va en **ZIP y no en GZIP** por una razón práctica: Windows abre `.zip` con doble clic y `.gz` no,
+así que un `.csv.gz` se descarga bien y aun así no se puede abrir sin instalar nada.
 
 Se regeneran con `python -c "from comsoc import export; export.publicar_descargas()"`.
 

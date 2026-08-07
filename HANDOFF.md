@@ -214,14 +214,19 @@ factura↔renglón detecta descuadres **de la fuente**. Detalle en `referencias/
 webfont ni script remoto. La única URL del archivo es el namespace XML de SVG. Se abre con doble
 clic o se publica tal cual.
 
-Contiene:
+Contiene, en orden:
 
 - **Barras** de la serie anual deflactada, con los sexenios marcados; clic fija el año.
 - **Dos treemaps** a ancho completo (1000×470), 30 entidades con cuadro propio y la cola partida
   en tramos de posición marcados con trama diagonal. Sin partir, ese "Otros" valía **21%–39%**
   del año en empresas; ahora el bloque mayor es 19.7%.
-- **Buscador** de las 13,894 combinaciones entidad×año, insensible a acentos, con filtros de tipo
-  y año, orden por columna y paginado.
+- **Portadas** de las dos vistas de pantalla completa, con miniatura del treemap.
+- **Medios en el tiempo**: nueve pequeños múltiplos con escala compartida (§3.13).
+- **Campañas**: treemap por año, rampa verde azulada. Solo 2024–2025, y se dice por qué.
+- **Concentración de proveedores**: barras ordenadas de la institución más concentrada a la
+  menos, con selector de medida (1, 3 o 5 proveedores mayores), umbral y año.
+- **Buscador** de las 13,894 combinaciones entidad×año, insensible a acentos y con alias.
+- **Descargas** del dataset completo, con el diccionario de las 58 columnas.
 
 **Aclaración importante del buscador:** el monto es **erogado** en los renglones de institución y
 **recibido** en los de empresa — las dos caras del mismo peso. El contador los suma por separado;
@@ -235,11 +240,17 @@ rampa `#FB7EBC → #F62477 → #C4104F → #92003A`, ΔL 0.116 / 0.108 / 0.107 s
 0.06. `#FFADEE` (L 0.85) y `#FFE185` (L 0.92) están muy por encima de la banda para ser marcas:
 se usan solo como fondo y realce. Tema único claro sobre crema `#FBF5E6`, deliberado.
 
-### 3.9 «¿Quién le paga a quién?» (`zoom.py`)
+### 3.9 Treemaps con zoom (`zoom.py`) — dos vistas
 
-`python -m comsoc.zoom` genera **`docs/quien-paga-a-quien.html`**, página independiente del
-reporte: un treemap a pantalla completa donde cada caja es una institución y, al darle clic, las
-empresas que recibieron su dinero **crecen desde esa misma caja** hasta llenar el lienzo.
+`python -m comsoc.zoom` genera **dos** páginas independientes del reporte, desde el mismo código
+parametrizado por el diccionario `VISTAS`:
+
+| página | nivel 0 → nivel 1 | peso |
+|---|---|---:|
+| `quien-paga-a-quien.html` | institución → empresas | 1,145 KB |
+| `medios.html` | familia de medio → producto | 28 KB |
+
+Cada caja se abre al darle clic y los hijos **crecen desde esa misma caja** hasta llenar el lienzo.
 
 La animación interpola las coordenadas de cada celda en vez de aplicar un `transform` al grupo:
 así el texto no se deforma al escalar y no depende de cómo cada navegador resuelva
@@ -261,12 +272,17 @@ Geometría verificada con los datos reales: 15 layouts de instituciones × 4 tam
 
 | archivo | tamaño |
 |---|---:|
-| `comsoc_polizas.csv.gz` | 15.5 MB |
-| `comsoc_polizas.parquet` (zstd) | 11.6 MB |
+| `comsoc_polizas_csv.zip` | 15.7 MB |
+| `comsoc_polizas.parquet` (zstd) | 11.7 MB |
 
-Las 56 columnas completas, más un diccionario de las 28 que necesitan explicación. El CSV lleva
-**BOM y entrecomillado con comillas duplicadas**: sin eso Excel en Windows rompe los acentos y
-parte las columnas en nombres con coma («DEMOS, DESARROLLO DE MEDIOS»).
+Las 58 columnas completas, con **diccionario de las 58** agrupado por tema en el reporte.
+El CSV lleva **BOM y entrecomillado con comillas duplicadas**: sin eso Excel en Windows rompe los
+acentos y parte las columnas en nombres con coma («DEMOS, DESARROLLO DE MEDIOS»).
+
+⚠ **ZIP y no GZIP.** Se publicó primero como `.csv.gz` y el usuario reportó que «no servía».
+La descarga funcionaba —Pages entregaba un gzip válido— pero **Windows no abre `.gz` con doble
+clic** ni Excel lo reconoce. Pesan casi lo mismo. *Lección: que el archivo llegue no significa
+que se pueda usar.*
 
 Un tercer botón genera el resumen por entidad y año en el navegador, sin peso extra.
 
@@ -285,7 +301,65 @@ estén ya en el canónico. No se muestran, solo se buscan. Lo usan las dos pági
 *Lección: cada vez que se agregue una regla de homologación hay que preguntarse si borra un
 término por el que alguien buscaría.*
 
-### 3.12 Entorno: conda local
+### 3.12 El texto «&lt;NA&gt;» publicado como si fuera un dato
+
+**176,153 filas llevaban la cadena literal `"<NA>"`** en `campana_nombre`, y el mismo texto
+aparecía en 16 columnas más. Se publicó así en el CSV descargable durante varios commits.
+
+Origen: `astype(str)` sobre un nulo de pandas produce la cadena `"<NA>"`, y la lista de
+reemplazos de `normalizar_llaves` solo contemplaba `"nan"`, `"None"` y `""`.
+
+Corregido con `clean.barrer_nulos_de_texto`, que barre **todas** las columnas de texto —no solo
+las conocidas— contra `BASURA_NULA`. Verificado: 0 casos.
+
+*Lección: el bug no estaba en la columna que se estaba tocando, sino en las quince que nadie
+miraba. Cuando se normaliza texto, la pasada tiene que ser sobre todo el ancho de la tabla.*
+
+### 3.13 Medios: el catálogo está en la clave, no en el texto
+
+`config/medios.csv` mapea las 37 `producto_clave` a **9 familias** (Televisión, Radio, Diarios,
+Internet, Exterior, Revistas, Cine, Producción y servicios, Otros) y a un nombre limpio de
+producto. Produce `medio_familia` y `medio_producto`.
+
+Se deriva de la **clave** y no de `producto_desc` ni de `clase_medio` por dos razones medidas:
+la clave está completa en los 14 años y solo tiene 37 valores, mientras `producto_desc` trae
+ruido de captura —la clave 21 aparece con **17 redacciones distintas**— y `clase_medio` solo
+existe en 2024–2025.
+
+Verificado: las 9 familias suman el total de cada año con 0.20 MDP de diferencia máxima, y no
+queda ninguna fila «Sin clasificar».
+
+**Lo que muestra**, en % del gasto del año:
+
+| familia | 2012 | 2025 | |
+|---|---:|---:|---|
+| Televisión | 35.7% | 17.8% | **−17.9 pp** |
+| Internet | 4.3% | 26.7% | **+22.5 pp** |
+| Diarios | 9.3% | 20.8% | +11.6 pp |
+| Exterior | 5.9% | 0.7% | −5.2 pp |
+
+Internet pasó de marginal a segundo medio y casi alcanza a la televisión.
+
+### 3.14 Las tres rampas y por qué son tres
+
+Cada jerarquía tiene su familia de color, para que el cambio de nivel se note:
+
+| uso | rampa | ΔL entre pasos | paso claro |
+|---|---|---|---|
+| instituciones, barras | `#FB7EBC → #92003A` | 0.116 / 0.108 / 0.107 | 2.19 |
+| empresas | `#D8930F → #7A4A02` | 0.088 / 0.091 / 0.081 | 2.38 |
+| campañas | `#4FB8A3 → #0C4E45` | 0.082 / 0.122 / 0.128 | 2.35 |
+
+Todas pasan el criterio ordinal (ΔL ≥ 0.06, paso más claro ≥ 2.0 de contraste sobre el fondo
+crema). El ámbar se eligió sobre ciruela y verde azulado por ser la más separable del rosa
+(ΔE 14.9 normal, 5.5 bajo daltonismo, contra 9.7 de la ciruela).
+
+⚠ **Nueve familias de medios no caben como nueve colores categóricos**: el límite práctico son
+ocho y ninguna paleta de nueve tonos sobrevive al daltonismo. Por eso ese análisis va como
+**pequeños múltiplos** —un panel por familia, un solo acento, escala compartida— y no como barras
+apiladas.
+
+### 3.15 Entorno: conda local
 
 Se descartó Colab. Todo corre en local sobre **`pnt_analysis`**, environment **reutilizado** de
 otro proyecto del mismo dominio: Python 3.12.3, pandas 2.2.2, pyarrow 16.1, plotnine 0.13.6,
@@ -294,12 +368,21 @@ networkx, scipy, matplotlib, ipykernel. Se le agregaron `openpyxl`, `pyyaml` y `
 Intérprete: `C:\Users\User\anaconda3\envs\pnt_analysis\python.exe`. `conda` no está en el PATH.
 Correr siempre con `-X utf8`.
 
-### 3.13 Código
+### 3.16 Código
 
 `src/comsoc/`: `config`, `layouts`, `schema`, `ingest`, `clean`, `entities`, `ids`, `deflate`,
 `validate`, `export`, `reporte`, `zoom`, `build`.
 `config/`: `layouts.yaml`, `columnas.yaml`, `beneficiarios_map.csv`, `instituciones_map.csv`,
-`deflactor.csv`, `fechas_corruptas.yaml`.
+`medios.csv`, `deflactor.csv`, `fechas_corruptas.yaml`.
+
+El sitio se regenera con tres comandos:
+
+```powershell
+& $py -X utf8 -m comsoc.build       # Excel -> parquet
+& $py -X utf8 -m comsoc.reporte     # parquet -> docs/index.html
+& $py -X utf8 -m comsoc.zoom        # parquet -> las dos vistas de pantalla completa
+& $py -X utf8 -c "from comsoc import export; export.publicar_descargas()"
+```
 Más `pyproject.toml`, `.gitignore`, `README.md`, `notebooks/00_construir_dataset.ipynb`,
 `referencias/` y los 3 skills en `.claude/skills/`.
 
@@ -324,6 +407,11 @@ Todo lo viejo se **movió, nada se borró**: el proyecto en R está íntegro en 
    aplicarla a los años nuevos.*
 6. La deflactación cruzaba por `anio` (con basura como 2001 y 2055) en vez de `anio_fuente`.
 7. El contador del buscador sumaba instituciones y empresas juntas: mostraba el doble del real.
+8. **176,153 filas con el texto literal `"<NA>"` como si fuera un dato**, publicado en el CSV
+   descargable. `astype(str)` sobre un nulo de pandas produce esa cadena. Ver §3.12.
+9. Los dos buscadores no encontraban `imss` ni `lotería`: la homologación borra justo lo que la
+   gente teclea. Ver §3.11.
+10. El CSV se publicó como `.csv.gz`, que Windows no abre con doble clic. Ver §3.10.
 
 ---
 
@@ -331,7 +419,7 @@ Todo lo viejo se **movió, nada se borró**: el proyecto en R está íntegro en 
 
 | # | Pendiente | Nota |
 |---|---|---|
-| 1 | **Fase 6 — análisis** | Es el objetivo del proyecto y el pipeline ya lo permite. Las 7 preguntas están en el skill `comsoc-analisis`. |
+| 1 | **Fase 6 — análisis** | Parcialmente hecho: el reporte ya cubre serie, medios en el tiempo, campañas y concentración. Faltan el ciclo electoral, la red institución↔beneficiario y las anomalías de precio. Las 7 preguntas están en el skill `comsoc-analisis`. |
 | 2 | **Verificar 2 RFC de Imagen** | `CSI0508264PA0` y `ISI050826EQ50`. Cinco minutos de consulta deciden 1,401 MDP y si la cifra de Imagen está inflada 39%. |
 | 3 | **Fase 5 — hojas `Ejercido`** | Declaradas en `layouts.yaml`, sin lector. Falta tabla puente institución↔clave (no traen clave, ~120 por año). Permitiría cruzar presupuesto autorizado contra pagado. |
 | 4 | **Cola larga de beneficiarios** | Catálogo `RFC → canónico` con 2012–2016 + 2024–2025, y `rapidfuzz` para el hueco 2017–2023. Hoy 4,955 nombres crudos → 4,719 canónicos: las reglas apenas tocan 236. |
