@@ -27,17 +27,55 @@ import pandas as pd
 from .config import DOCS_DIR, POLIZAS_PARQUET, asegurar_directorios
 from .reporte import AUTOR, FAVICON, TOKENS, URL_COMSOC, alias_busqueda
 
-TITULO = "¿Qui&eacute;n le paga a qui&eacute;n? &middot; Publicidad oficial federal"
-DESCRIPCION = ("Treemap interactivo del gasto federal mexicano en publicidad oficial: "
-               "cada caja es una institucion; al darle clic se abren las empresas que "
-               "recibieron su dinero. Elaborado por " + AUTOR + ".")
+VISTAS = {
+    "quien-paga-a-quien": {
+        "archivo": "quien-paga-a-quien.html",
+        "padre": "institucion_canonica",
+        "hijo": "beneficiario_canonico",
+        "titulo": "¿Qui&eacute;n le paga <em>a qui&eacute;n</em>?",
+        "titulo_tab": "¿Qui&eacute;n le paga a qui&eacute;n? &middot; Publicidad oficial federal",
+        "bajada": ("Gasto federal en publicidad oficial. Cada caja es una instituci&oacute;n y su "
+                   "tama&ntilde;o es lo que erog&oacute;. <b>Da clic</b> para ver a qui&eacute;n "
+                   "le pag&oacute;."),
+        "etq_padre": "instituciones",
+        "etq_hijo": "empresas",
+        "cab_padre": "Instituciones que pagan",
+        "cab_hijo": "Empresas que reciben",
+        "buscar": "Buscar instituci&oacute;n&hellip;",
+        "volver": "Todas las instituciones",
+        "descripcion": ("Treemap interactivo del gasto federal mexicano en publicidad oficial: "
+                        "cada caja es una institucion; al darle clic se abren las empresas que "
+                        "recibieron su dinero."),
+    },
+    "medios": {
+        "archivo": "medios.html",
+        "padre": "medio_familia",
+        "hijo": "medio_producto",
+        "titulo": "¿En qu&eacute; <em>medios</em>?",
+        "titulo_tab": "¿En qu&eacute; medios? &middot; Publicidad oficial federal",
+        "bajada": ("Gasto federal en publicidad oficial por tipo de medio. Cada caja es una "
+                   "familia de medios y su tama&ntilde;o es lo que se le pag&oacute;. "
+                   "<b>Da clic</b> para ver el desglose por producto."),
+        "etq_padre": "familias de medios",
+        "etq_hijo": "productos",
+        "cab_padre": "Medios",
+        "cab_hijo": "Productos",
+        "buscar": "Buscar medio&hellip;",
+        "volver": "Todos los medios",
+        "descripcion": ("Treemap interactivo del gasto federal mexicano en publicidad oficial por "
+                        "tipo de medio: televisión, radio, diarios, internet y exterior, con su "
+                        "desglose por producto."),
+    },
+}
 
 
-def construir_datos(df: pd.DataFrame) -> dict:
+def construir_datos(df: pd.DataFrame, vista: dict) -> dict:
     b = df[(df.vintage == "definitiva") & (~df.es_intercambio)]
 
-    par = (b.groupby(["anio_fuente", "institucion_canonica", "beneficiario_canonico"],
-                     observed=True)["monto_real"].sum().reset_index())
+    padre, hijo = vista["padre"], vista["hijo"]
+    par = (b.groupby(["anio_fuente", padre, hijo], observed=True)["monto_real"]
+           .sum().reset_index()
+           .rename(columns={padre: "padre", hijo: "hijo"}))
     # 2 decimales de MDP = 10 mil pesos. Más precisión no cambia ningún cuadro y sí
     # engorda el archivo. Se redondea ANTES de filtrar: al revés, los montos menores
     # a 5 mil pesos quedan en 0.00 y meten celdas de área cero, que hacen dividir
@@ -46,24 +84,26 @@ def construir_datos(df: pd.DataFrame) -> dict:
     descartados = int((par.mdp <= 0).sum())
     par = par[par.mdp > 0]
 
-    nombres = sorted(set(par.institucion_canonica) | set(par.beneficiario_canonico))
+    nombres = sorted(set(par.padre) | set(par.hijo))
     ix = {v: i for i, v in enumerate(nombres)}
 
-    # [anio, idxInstitucion, idxEmpresa, monto en MDP]
-    filas = [[int(r.anio_fuente), ix[r.institucion_canonica], ix[r.beneficiario_canonico],
-              float(r.mdp)] for r in par.itertuples(index=False)]
+    # [anio, idxPadre, idxHijo, monto en MDP]
+    filas = [[int(r.anio_fuente), ix[r.padre], ix[r.hijo], float(r.mdp)]
+             for r in par.itertuples(index=False)]
     if descartados:
         print(f"  [nota] {descartados:,} pares por debajo de 10 mil pesos: no se dibujan")
 
     # Palabras extra para el buscador: sin esto, `imss` y `lotería` no encuentran
     # nada, porque la homologación quita el acrónimo y renombra a LOTENAL.
-    siglas = alias_busqueda(b, "institucion", "institucion_canonica")
+    if padre == "institucion_canonica":
+        siglas = alias_busqueda(b, "institucion", "institucion_canonica")
+    else:
+        siglas = {}
     alias = [siglas.get(n, "") for n in nombres]
 
     anios = sorted(par.anio_fuente.unique().astype(int).tolist())
     return {"nombres": nombres, "alias": alias, "filas": filas, "anios": anios,
-            "meta": {"instituciones": int(b.institucion_canonica.nunique()),
-                     "empresas": int(b.beneficiario_canonico.nunique()),
+            "meta": {"padres": int(b[padre].nunique()), "hijos": int(b[hijo].nunique()),
                      "total": round(float(b.monto_real.sum() / 1e6), 1)}}
 
 
@@ -156,20 +196,19 @@ footer a{color:var(--ink-2)}
 CUERPO = """
 <header>
   <div class="tit">
-    <h1>&iquest;Qui&eacute;n le paga <em>a qui&eacute;n</em>?</h1>
-    <p class="sub">Gasto federal en publicidad oficial. Cada caja es una instituci&oacute;n y su
-      tama&ntilde;o es lo que erog&oacute;. <b>Da clic</b> para ver a qui&eacute;n le pag&oacute;.</p>
+    <h1>__TITULO__</h1>
+    <p class="sub">__BAJADA__</p>
   </div>
   <div class="ctrl">
     <div class="busca">
       <svg class="lupa" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-      <input id="q" type="search" autocomplete="off" placeholder="Buscar instituci&oacute;n&hellip;"
-             aria-label="Buscar instituci&oacute;n" role="combobox" aria-expanded="false"
+      <input id="q" type="search" autocomplete="off" placeholder="__BUSCAR__"
+             aria-label="__BUSCAR__" role="combobox" aria-expanded="false"
              aria-controls="sug" aria-autocomplete="list">
       <ul id="sug" role="listbox" hidden></ul>
     </div>
     <select id="anio" aria-label="A&ntilde;o"></select>
-    <button class="btn" id="volver" hidden>&larr; Todas las instituciones</button>
+    <button class="btn" id="volver" hidden>&larr; __VOLVER__</button>
   </div>
 </header>
 
@@ -181,6 +220,7 @@ CUERPO = """
     constantes de 2020 &middot; Solo gasto federal</span>
   <span>Fuente: Sistema COMSOC &middot;
     <a href="__URL_COMSOC__" rel="noopener">gob.mx/buengobierno</a> &middot;
+    <a href="__OTRA_VISTA__">__OTRA_ETQ__</a> &middot;
     <a href="index.html">Reporte completo</a></span>
 </footer>
 
@@ -189,6 +229,7 @@ CUERPO = """
 
 GUION = r"""
 const D = __DATOS__, AUTOR = '__AUTOR__';
+const ETQ = __ETIQUETAS__;   /* textos de la vista: padre, hijo, encabezados */
 const NOM = D.nombres;
 const fmt  = n => n.toLocaleString('es-MX',{maximumFractionDigits:0});
 const fmt1 = n => n.toLocaleString('es-MX',{minimumFractionDigits:1,maximumFractionDigits:1});
@@ -283,16 +324,16 @@ function dibuja(cells,total,esInstitucion,desde){
 
     const pct=(100*c.v/total).toFixed(1);
     const extra=esInstitucion
-      ? '<br>' + fmt(CUENTA_EMP.get(c.i)||0) + ' empresas · clic para abrir'
+      ? '<br>' + fmt(CUENTA_EMP.get(c.i)||0) + ' ' + ETQ.hijo + ' · clic para abrir'
       : '';
     g.addEventListener('mousemove',e=>verTip(e,
       '<b>'+c.n+'</b><span class="n">'+fmt1(c.v)+'</span> MDP de 2020<br><span class="n">'+
-      pct+'%</span> '+(esInstitucion?'del gasto federal':'de esta institución')+extra));
+      pct+'%</span> '+(esInstitucion?'del gasto federal':'de '+ETQ.de_esta)+extra));
     g.addEventListener('mouseleave',ocultarTip);
     if(esInstitucion){
       g.setAttribute('tabindex','0');
       g.setAttribute('role','button');
-      g.setAttribute('aria-label',c.n+', '+fmt1(c.v)+' millones, abrir empresas');
+        g.setAttribute('aria-label',c.n+', '+fmt1(c.v)+' millones, abrir '+ETQ.hijo);
       g.addEventListener('click',()=>entrar(c));
       g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();entrar(c);}});
     }
@@ -358,24 +399,24 @@ function render(desde){
   W=Math.max(rect.width,1); H=Math.max(rect.height,1);
   svg.setAttribute('viewBox','0 0 '+W+' '+H);
 
-  const esInst = inst===null;
-  const datos = esInst ? nivelInstituciones() : nivelEmpresas(inst);
+  const esRaiz = inst===null;
+  const datos = esRaiz ? nivelInstituciones() : nivelEmpresas(inst);
   const total = datos.reduce((s,d)=>s+d.v,0);
   const cells = squarify(datos,W,H);
 
-  document.getElementById('volver').hidden = esInst;
+  document.getElementById('volver').hidden = esRaiz;
   const etqAnio = anioSel==='' ? '2012–2025' : anioSel;
-  document.getElementById('ruta').innerHTML = esInst
-    ? '<span class="paso">Todas las instituciones</span><span class="sep">·</span>'+
-      '<span class="cifra">'+fmt(datos.length)+' instituciones · '+fmt1(total)+' MDP · '+etqAnio+'</span>'+
-      '<span class="sep">·</span><span class="pista">Da clic en una caja para ver a quién le pagó</span>'
-    : '<a id="raiz">Todas las instituciones</a><span class="sep">›</span>'+
+  document.getElementById('ruta').innerHTML = esRaiz
+    ? '<span class="paso">'+ETQ.volver+'</span><span class="sep">·</span>'+
+      '<span class="cifra">'+fmt(datos.length)+' '+ETQ.padre+' · '+fmt1(total)+' MDP · '+etqAnio+'</span>'+
+      '<span class="sep">·</span><span class="pista">'+ETQ.pista+'</span>'
+    : '<a id="raiz">'+ETQ.volver+'</a><span class="sep">›</span>'+
       '<span class="paso">'+NOM[inst]+'</span><span class="sep">·</span>'+
-      '<span class="cifra">'+fmt(datos.length)+' empresas · '+fmt1(total)+' MDP · '+etqAnio+'</span>';
+      '<span class="cifra">'+fmt(datos.length)+' '+ETQ.hijo+' · '+fmt1(total)+' MDP · '+etqAnio+'</span>';
   const raiz=document.getElementById('raiz');
   if(raiz) raiz.addEventListener('click',salir);
 
-  dibuja(cells,total,esInst,desde);
+  dibuja(cells,total,esRaiz,desde);
 }
 
 /* ── buscador de instituciones ── */
@@ -412,8 +453,7 @@ function pintaSug(){
   lista.innerHTML = sugs.length
     ? sugs.map((d,k)=>'<li role="option" data-k="'+k+'" aria-selected="'+(k===marcada)+'">'+
         '<span>'+d.n+'</span><span class="mdp">'+fmt1(d.v)+' MDP</span></li>').join('')
-    : '<li class="vacio">Ninguna institución con ese nombre en '+
-      (anioSel===''?'la serie':anioSel)+'</li>';
+    : '<li class="vacio">Sin resultados en '+(anioSel===''?'la serie':anioSel)+'</li>';
   lista.hidden=false;
   cajaQ.setAttribute('aria-expanded','true');
   Array.prototype.forEach.call(lista.querySelectorAll('li[data-k]'),li=>{
@@ -464,39 +504,64 @@ render(null);
 """
 
 
-def _pagina(datos: dict) -> str:
-    cuerpo = CUERPO.replace("__AUTOR__", AUTOR).replace("__URL_COMSOC__", URL_COMSOC)
+def _pagina(datos: dict, vista: dict, otra: dict) -> str:
+    etiquetas = {
+        "padre": vista["etq_padre"], "hijo": vista["etq_hijo"],
+        "volver": vista["volver"], "de_esta": vista["cab_padre"].lower().rstrip("s"),
+        "pista": f"Da clic en una caja para ver sus {vista['etq_hijo']}",
+    }
+    cuerpo = (CUERPO
+              .replace("__TITULO__", vista["titulo"])
+              .replace("__BAJADA__", vista["bajada"])
+              .replace("__BUSCAR__", vista["buscar"])
+              .replace("__VOLVER__", vista["volver"])
+              .replace("__OTRA_VISTA__", otra["archivo"])
+              .replace("__OTRA_ETQ__", otra["cab_padre"])
+              .replace("__AUTOR__", AUTOR)
+              .replace("__URL_COMSOC__", URL_COMSOC))
     guion = (GUION
              .replace("__DATOS__", json.dumps(datos, ensure_ascii=False, separators=(",", ":")))
+             .replace("__ETIQUETAS__", json.dumps(etiquetas, ensure_ascii=False))
              .replace("__AUTOR__", AUTOR))
     return (
         "<!DOCTYPE html>\n"
         '<html lang="es">\n<head>\n'
         '<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        f'<meta name="description" content="{DESCRIPCION}">\n'
+        f'<meta name="description" content="{vista["descripcion"]} Elaborado por {AUTOR}.">\n'
         f'<meta name="author" content="{AUTOR}">\n'
         '<meta name="color-scheme" content="light">\n'
         f'<link rel="icon" href="{FAVICON}">\n'
-        f"<title>{TITULO}</title>\n<style>{ESTILO}</style>\n</head>\n<body>\n"
+        f'<title>{vista["titulo_tab"]}</title>\n<style>{ESTILO}</style>\n</head>\n<body>\n'
         f"{cuerpo}\n<script>{guion}</script>\n</body>\n</html>\n"
     )
 
 
-def construir(destino: Path | None = None) -> Path:
+def construir(cual: str = "quien-paga-a-quien", destino: Path | None = None) -> Path:
     asegurar_directorios()
-    datos = construir_datos(pd.read_parquet(POLIZAS_PARQUET))
-    ruta = destino or (DOCS_DIR / "quien-paga-a-quien.html")
-    ruta.write_text(_pagina(datos), encoding="utf-8")
-    print(f"  {ruta}  ({ruta.stat().st_size / 1024:,.0f} KB)  "
-          f"{len(datos['filas']):,} tripletas, {datos['meta']['instituciones']} instituciones")
+    vista = VISTAS[cual]
+    otra = VISTAS["medios" if cual == "quien-paga-a-quien" else "quien-paga-a-quien"]
+    datos = construir_datos(pd.read_parquet(POLIZAS_PARQUET), vista)
+    ruta = destino or (DOCS_DIR / vista["archivo"])
+    ruta.write_text(_pagina(datos, vista, otra), encoding="utf-8")
+    print(f"  {ruta.name:26} {ruta.stat().st_size / 1024:>6,.0f} KB  "
+          f"{len(datos['filas']):>7,} pares · {datos['meta']['padres']} {vista['etq_padre']}")
     return ruta
 
 
+def construir_todas() -> list[Path]:
+    return [construir(k) for k in VISTAS]
+
+
 def main() -> None:
-    p = argparse.ArgumentParser(description="Treemap con zoom institución → empresas")
+    p = argparse.ArgumentParser(description="Treemaps con zoom (dos jerarquías)")
+    p.add_argument("--vista", choices=[*VISTAS, "todas"], default="todas")
     p.add_argument("--salida", type=Path, default=None)
-    construir(destino=p.parse_args().salida)
+    args = p.parse_args()
+    if args.vista == "todas":
+        construir_todas()
+    else:
+        construir(args.vista, destino=args.salida)
 
 
 if __name__ == "__main__":

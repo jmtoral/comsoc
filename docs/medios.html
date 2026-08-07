@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Treemap interactivo del gasto federal mexicano en publicidad oficial por tipo de medio: televisión, radio, diarios, internet y exterior, con su desglose por producto. Elaborado por Manuel Toral.">
+<meta name="author" content="Manuel Toral">
+<meta name="color-scheme" content="light">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%226%22 fill=%22%23FBF5E6%22/><rect x=%225%22 y=%2216%22 width=%225%22 height=%2211%22 fill=%22%23F62477%22/><rect x=%2213%22 y=%229%22 width=%225%22 height=%2218%22 fill=%22%2392003A%22/><rect x=%2221%22 y=%2213%22 width=%225%22 height=%2214%22 fill=%22%23F62477%22/></svg>">
+<title>¿En qu&eacute; medios? &middot; Publicidad oficial federal</title>
+<style>
+:root{
+  --bg:#FBF5E6; --surface:#FFFCF4; --surface-2:#FDF3DC;
+  --ink:#331018; --ink-2:#71454F; --ink-3:#9C7C74;
+  --line:#EDE0C8; --line-2:#E0CFAE;
+  --accent:#F62477; --accent-deep:#92003A;
+  --soft-pink:#FFADEE; --soft-yellow:#FFE185;
+  --r1:#FB7EBC; --r2:#F62477; --r3:#C4104F; --r4:#92003A;
+  --on-r1:#331018; --on-r2:#331018; --on-r3:#FFFCF4; --on-r4:#FFFCF4;
+  --otros:#E6D8BC; --on-otros:#5C4636;
+  --shadow:0 1px 2px rgba(51,16,24,.05),0 8px 26px rgba(51,16,24,.045);
+  --font-display:'Bahnschrift','DIN Alternate','Roboto Condensed','Arial Narrow',ui-sans-serif,system-ui,sans-serif;
+  --font-body:ui-sans-serif,system-ui,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',sans-serif;
+  --font-mono:ui-monospace,'Cascadia Mono','Segoe UI Mono','SF Mono',Consolas,monospace;
+  color-scheme:light;
+}
+
+/* Segunda rampa, ámbar, para el nivel de empresas: al bajar cambia el color y se
+   nota que cambiaste de nivel, no solo de cajas.
+   Elegida sobre verde azulado y ciruela porque es la única que pasa el criterio
+   ordinal sobre el fondo crema (ΔL 0.088/0.091/0.081, paso claro a 2.38 de
+   contraste) y a la vez es la más separable de la rampa rosa: ΔE 14.9 en visión
+   normal y 5.5 bajo daltonismo, contra 9.7 de la ciruela.
+   El verde azulado quedaba en 1.80 de contraste, por debajo del piso de 2.0. */
+:root{
+  --a1:#D8930F; --a2:#B8790A; --a3:#966006; --a4:#7A4A02;
+  --on-a1:#331018; --on-a2:#331018; --on-a3:#FFFCF4; --on-a4:#FFFCF4;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;overflow:hidden}
+@media (max-width:720px){body{overflow:auto}}
+
+header{padding:16px 22px 12px;border-bottom:1px solid var(--line-2);flex:0 0 auto;
+  display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end;background:var(--surface)}
+.tit{flex:1 1 320px;min-width:0}
+h1{font-family:var(--font-display);font-weight:700;letter-spacing:-.015em;
+  font-size:clamp(21px,2.6vw,31px);line-height:1.05;margin:0}
+h1 em{font-style:normal;color:var(--accent-deep)}
+.sub{margin:5px 0 0;font-size:13.5px;color:var(--ink-2);max-width:62ch}
+.ctrl{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+select,button.btn{font-family:var(--font-body);font-size:14px;padding:8px 13px;border-radius:10px;
+  border:1px solid var(--line-2);background:var(--surface);color:var(--ink);cursor:pointer}
+select:focus,button.btn:focus-visible{border-color:var(--accent);outline:none}
+button.btn:hover{border-color:var(--accent);color:var(--accent-deep)}
+button.btn[hidden]{display:none}
+
+.busca{position:relative;display:flex;align-items:center;min-width:238px}
+.busca input{width:100%;font-family:var(--font-body);font-size:14px;padding:8px 12px 8px 34px;
+  border-radius:10px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink)}
+.busca input::placeholder{color:var(--ink-3)}
+.busca input:focus{border-color:var(--accent);outline:none;
+  box-shadow:0 0 0 3px rgba(246,36,119,.14)}
+.busca .lupa{position:absolute;left:11px;width:15px;height:15px;stroke:var(--ink-3);
+  fill:none;stroke-width:2;pointer-events:none}
+#sug{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:70;margin:0;padding:5px;
+  list-style:none;background:var(--surface);border:1px solid var(--line-2);border-radius:11px;
+  box-shadow:0 10px 30px rgba(51,16,24,.16);max-height:min(58vh,380px);overflow-y:auto}
+#sug[hidden]{display:none}
+#sug li{padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13.5px;color:var(--ink-2);
+  display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+#sug li .mdp{font-family:var(--font-mono);font-size:12px;color:var(--ink-3);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+#sug li[aria-selected="true"],#sug li:hover{background:var(--surface-2);color:var(--ink)}
+#sug li.vacio{color:var(--ink-3);cursor:default;justify-content:flex-start}
+
+.ruta{padding:9px 22px;border-bottom:1px solid var(--line);flex:0 0 auto;background:var(--surface-2);
+  display:flex;gap:9px;align-items:baseline;flex-wrap:wrap;min-height:40px}
+.ruta .paso{font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--ink)}
+.ruta .sep{color:var(--ink-3)}
+.ruta .cifra{font-family:var(--font-mono);font-size:13px;color:var(--ink-2);
+  font-variant-numeric:tabular-nums}
+.ruta .pista{font-size:13px;color:var(--ink-3)}
+.ruta a{color:var(--accent-deep);cursor:pointer;text-decoration:none;border-bottom:1px solid var(--line-2)}
+.ruta a:hover{border-color:var(--accent)}
+
+#lienzo{flex:1 1 auto;min-height:0;position:relative}
+@media (max-width:720px){#lienzo{height:78vh}}
+svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.cel rect{stroke:var(--bg);stroke-width:2;transition:filter .12s ease}
+.cel.click{cursor:pointer}
+.cel.click:hover rect{filter:brightness(1.08)}
+.cel text{pointer-events:none;font-weight:600}
+.nom{font-family:var(--font-body)}
+.val{font-family:var(--font-mono);font-variant-numeric:tabular-nums;opacity:.88}
+
+footer{padding:9px 22px;border-top:1px solid var(--line);flex:0 0 auto;background:var(--surface);
+  font-size:11.5px;color:var(--ink-3);display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
+footer b{color:var(--accent-deep)}
+footer a{color:var(--ink-2)}
+
+#tip{position:fixed;pointer-events:none;opacity:0;transition:opacity .1s ease;z-index:60;
+  background:var(--ink);color:var(--surface);padding:9px 12px;border-radius:9px;
+  font-size:12.5px;line-height:1.45;max-width:300px;box-shadow:0 6px 20px rgba(51,16,24,.26)}
+#tip b{font-family:var(--font-display);font-size:13.5px;display:block;margin-bottom:2px}
+#tip .n{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="tit">
+    <h1>¿En qu&eacute; <em>medios</em>?</h1>
+    <p class="sub">Gasto federal en publicidad oficial por tipo de medio. Cada caja es una familia de medios y su tama&ntilde;o es lo que se le pag&oacute;. <b>Da clic</b> para ver el desglose por producto.</p>
+  </div>
+  <div class="ctrl">
+    <div class="busca">
+      <svg class="lupa" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <input id="q" type="search" autocomplete="off" placeholder="Buscar medio&hellip;"
+             aria-label="Buscar medio&hellip;" role="combobox" aria-expanded="false"
+             aria-controls="sug" aria-autocomplete="list">
+      <ul id="sug" role="listbox" hidden></ul>
+    </div>
+    <select id="anio" aria-label="A&ntilde;o"></select>
+    <button class="btn" id="volver" hidden>&larr; Todos los medios</button>
+  </div>
+</header>
+
+<div class="ruta" id="ruta"></div>
+<div id="lienzo"><svg id="mapa" role="img" aria-label="Treemap de gasto"></svg></div>
+
+<footer>
+  <span>An&aacute;lisis y elaboraci&oacute;n: <b>Manuel Toral</b> &middot; Millones de pesos
+    constantes de 2020 &middot; Solo gasto federal</span>
+  <span>Fuente: Sistema COMSOC &middot;
+    <a href="https://www.gob.mx/buengobierno/documentos/estrategia-de-comunicacion-social" rel="noopener">gob.mx/buengobierno</a> &middot;
+    <a href="quien-paga-a-quien.html">Instituciones que pagan</a> &middot;
+    <a href="index.html">Reporte completo</a></span>
+</footer>
+
+<div id="tip" role="status" aria-live="polite"></div>
+
+<script>
+const D = {"nombres":["Artículos promocionales","Cadenas radiofónicas","Carteles","Cine","Copiado","Diarios","Diarios de la Ciudad de México","Diarios de los estados","Diseño y servicios publicitarios","Dípticos","Encartes","Espectaculares","Estudios de pre y post campaña","Exterior","Folletos","Internet","Mantas","Medios impresos internacionales","Mobiliario urbano","Otros","Otros medios complementarios","Postproducción","Preproducción","Producción","Producción y servicios","Producto integrado","Publicidad móvil","Puntos de venta","Radio","Radiodifusoras internacionales","Radiodifusoras locales","Revistas","Rótulos","Servicios integrales de promoción","Suplementos","Tarjetas telefónicas","Televisión","Televisión abierta local","Televisión abierta nacional","Televisión internacional","Televisión restringida","Trípticos","Videobús"],"alias":["","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","","",""],"filas":[[2012,3,3,287.42],[2012,5,6,599.98],[2012,5,7,405.61],[2012,5,10,2.74],[2012,5,17,171.91],[2012,5,34,0.62],[2012,13,2,8.39],[2012,13,11,147.19],[2012,13,16,2.69],[2012,13,18,403.27],[2012,13,26,171.58],[2012,13,32,0.05],[2012,13,42,16.32],[2012,15,15,542.21],[2012,19,0,19.12],[2012,19,9,0.46],[2012,19,14,5.4],[2012,19,20,1744.12],[2012,19,25,88.01],[2012,19,27,0.83],[2012,19,33,5.62],[2012,19,35,2.39],[2012,19,41,1.0],[2012,24,4,2.27],[2012,24,8,75.92],[2012,24,12,41.01],[2012,24,21,32.98],[2012,24,22,22.46],[2012,24,23,539.94],[2012,28,1,1662.43],[2012,28,29,37.41],[2012,28,30,928.48],[2012,31,31,219.87],[2012,36,37,1006.41],[2012,36,38,3046.47],[2012,36,39,48.76],[2012,36,40,443.38],[2013,3,3,50.94],[2013,5,6,648.0],[2013,5,7,465.93],[2013,5,10,11.61],[2013,5,17,317.1],[2013,5,34,1.39],[2013,13,2,4.7],[2013,13,11,58.57],[2013,13,16,1.77],[2013,13,18,145.57],[2013,13,26,46.54],[2013,13,32,7.48],[2013,13,42,2.8],[2013,15,15,575.1],[2013,19,0,33.28],[2013,19,9,0.87],[2013,19,14,23.5],[2013,19,20,899.17],[2013,19,25,51.29],[2013,19,33,4.1],[2013,19,35,0.67],[2013,19,41,0.79],[2013,24,4,4.58],[2013,24,8,100.29],[2013,24,12,43.52],[2013,24,21,13.55],[2013,24,22,7.24],[2013,24,23,807.57],[2013,28,1,1545.22],[2013,28,29,62.33],[2013,28,30,454.03],[2013,31,31,197.78],[2013,36,37,275.13],[2013,36,38,2631.69],[2013,36,39,122.87],[2013,36,40,308.15],[2014,3,3,122.82],[2014,5,6,840.47],[2014,5,7,461.99],[2014,5,10,0.71],[2014,5,17,39.88],[2014,5,34,6.5],[2014,13,2,15.83],[2014,13,11,97.92],[2014,13,16,8.77],[2014,13,18,286.89],[2014,13,26,34.4],[2014,13,32,1.35],[2014,13,42,88.25],[2014,15,15,517.32],[2014,19,0,1.42],[2014,19,9,5.83],[2014,19,14,9.03],[2014,19,20,817.14],[2014,19,25,148.64],[2014,19,33,0.42],[2014,19,41,0.71],[2014,24,4,43.76],[2014,24,8,160.03],[2014,24,12,30.3],[2014,24,21,18.69],[2014,24,22,70.73],[2014,24,23,516.35],[2014,28,1,675.65],[2014,28,29,119.07],[2014,28,30,1066.14],[2014,31,31,160.22],[2014,36,37,357.88],[2014,36,38,2121.48],[2014,36,39,12.84],[2014,36,40,247.57],[2015,3,3,198.18],[2015,5,6,1238.28],[2015,5,7,542.11],[2015,5,17,55.27],[2015,5,34,0.44],[2015,13,2,55.48],[2015,13,11,264.27],[2015,13,16,8.85],[2015,13,18,371.32],[2015,13,26,92.87],[2015,13,32,0.31],[2015,13,42,55.29],[2015,15,15,876.59],[2015,19,0,0.72],[2015,19,9,0.6],[2015,19,14,2.56],[2015,19,20,437.08],[2015,19,25,76.41],[2015,19,33,0.05],[2015,19,35,1.04],[2015,24,4,8.76],[2015,24,8,68.07],[2015,24,12,32.45],[2015,24,21,14.84],[2015,24,22,7.57],[2015,24,23,555.48],[2015,28,1,486.09],[2015,28,29,6.74],[2015,28,30,1915.21],[2015,31,31,194.44],[2015,36,37,1735.42],[2015,36,38,2221.37],[2015,36,39,121.7],[2015,36,40,407.28],[2016,3,3,223.7],[2016,5,6,1205.96],[2016,5,7,572.36],[2016,5,17,141.95],[2016,5,34,0.03],[2016,13,2,75.99],[2016,13,11,469.52],[2016,13,16,8.53],[2016,13,18,400.96],[2016,13,26,87.98],[2016,13,32,11.59],[2016,13,42,88.13],[2016,15,15,756.9],[2016,19,0,0.61],[2016,19,9,0.21],[2016,19,14,0.48],[2016,19,20,693.34],[2016,19,25,47.0],[2016,19,41,0.26],[2016,24,4,2.35],[2016,24,8,84.97],[2016,24,12,32.18],[2016,24,21,4.58],[2016,24,22,0.02],[2016,24,23,643.47],[2016,28,1,514.1],[2016,28,29,78.12],[2016,28,30,1479.95],[2016,31,31,202.41],[2016,36,37,1458.18],[2016,36,38,2744.99],[2016,36,39,83.58],[2016,36,40,503.91],[2017,3,3,255.19],[2017,5,6,1255.84],[2017,5,7,546.77],[2017,5,17,135.82],[2017,13,2,89.49],[2017,13,11,280.64],[2017,13,16,7.27],[2017,13,18,404.42],[2017,13,26,72.69],[2017,13,32,9.33],[2017,13,42,129.61],[2017,15,15,866.24],[2017,19,0,0.26],[2017,19,9,0.15],[2017,19,14,0.16],[2017,19,20,581.28],[2017,19,25,49.61],[2017,19,41,0.4],[2017,24,4,5.61],[2017,24,8,116.56],[2017,24,12,44.07],[2017,24,21,20.22],[2017,24,22,4.0],[2017,24,23,696.14],[2017,28,1,870.94],[2017,28,29,36.56],[2017,28,30,1072.94],[2017,31,31,280.33],[2017,36,37,307.2],[2017,36,38,3808.3],[2017,36,39,23.72],[2017,36,40,306.64],[2018,3,3,234.54],[2018,5,6,1181.13],[2018,5,7,381.01],[2018,5,17,3.45],[2018,13,2,36.05],[2018,13,11,173.2],[2018,13,16,0.03],[2018,13,18,284.0],[2018,13,26,51.41],[2018,13,32,1.84],[2018,13,42,134.8],[2018,15,15,818.12],[2018,19,0,0.53],[2018,19,14,0.18],[2018,19,20,493.46],[2018,19,25,52.47],[2018,19,33,0.09],[2018,19,41,0.01],[2018,24,4,0.23],[2018,24,8,134.95],[2018,24,12,53.44],[2018,24,21,6.22],[2018,24,22,3.82],[2018,24,23,458.65],[2018,28,1,503.08],[2018,28,30,1100.1],[2018,31,31,210.52],[2018,36,37,325.27],[2018,36,38,3136.81],[2018,36,40,288.62],[2019,5,6,595.75],[2019,5,7,413.56],[2019,5,17,1.13],[2019,13,2,7.95],[2019,13,11,31.67],[2019,13,16,0.04],[2019,13,18,92.74],[2019,13,26,9.52],[2019,13,32,0.47],[2019,13,42,5.9],[2019,15,15,371.21],[2019,19,0,0.14],[2019,19,14,0.84],[2019,19,20,209.11],[2019,19,25,0.12],[2019,19,41,0.03],[2019,24,4,1.54],[2019,24,8,3.68],[2019,24,12,20.13],[2019,24,21,0.55],[2019,24,23,74.69],[2019,28,1,161.55],[2019,28,30,345.7],[2019,31,31,41.66],[2019,36,37,83.52],[2019,36,38,788.99],[2019,36,40,33.91],[2020,3,3,1.6],[2020,5,6,356.13],[2020,5,7,361.63],[2020,5,17,0.71],[2020,13,2,5.11],[2020,13,11,23.01],[2020,13,18,82.8],[2020,13,26,8.76],[2020,13,32,1.37],[2020,13,42,3.92],[2020,15,15,249.52],[2020,19,0,0.06],[2020,19,14,0.27],[2020,19,20,48.52],[2020,19,41,0.01],[2020,24,4,0.07],[2020,24,8,2.06],[2020,24,12,25.42],[2020,24,23,32.32],[2020,28,1,76.6],[2020,28,30,285.99],[2020,31,31,31.41],[2020,36,37,45.07],[2020,36,38,452.1],[2020,36,40,77.94],[2021,3,3,0.38],[2021,5,6,360.36],[2021,5,7,329.33],[2021,5,17,1.47],[2021,13,2,2.29],[2021,13,11,19.46],[2021,13,18,109.33],[2021,13,26,5.18],[2021,13,32,2.43],[2021,13,42,5.93],[2021,15,15,272.56],[2021,19,14,0.01],[2021,19,20,73.62],[2021,24,8,0.31],[2021,24,12,16.95],[2021,24,23,45.34],[2021,28,1,49.03],[2021,28,30,310.56],[2021,31,31,31.03],[2021,36,37,199.62],[2021,36,38,302.27],[2021,36,40,68.46],[2022,3,3,1.44],[2022,5,6,327.28],[2022,5,7,296.59],[2022,5,17,1.29],[2022,13,11,22.46],[2022,13,18,92.9],[2022,13,26,5.28],[2022,13,32,2.88],[2022,13,42,4.6],[2022,15,15,235.62],[2022,19,9,0.01],[2022,19,14,0.67],[2022,19,20,105.82],[2022,19,41,0.03],[2022,24,12,16.52],[2022,24,21,0.36],[2022,24,23,62.33],[2022,28,1,29.85],[2022,28,30,339.42],[2022,31,31,23.87],[2022,36,37,53.87],[2022,36,38,522.28],[2022,36,40,31.84],[2023,3,3,2.52],[2023,5,6,284.19],[2023,5,7,397.81],[2023,5,17,0.75],[2023,13,2,5.09],[2023,13,11,29.02],[2023,13,18,77.38],[2023,13,26,4.7],[2023,13,32,3.86],[2023,13,42,4.13],[2023,15,15,293.1],[2023,19,14,6.84],[2023,19,20,138.74],[2023,24,12,12.29],[2023,24,21,0.51],[2023,24,23,33.38],[2023,28,1,83.9],[2023,28,30,314.84],[2023,31,31,32.3],[2023,36,37,61.66],[2023,36,38,293.75],[2023,36,40,26.18],[2024,3,3,14.46],[2024,5,6,361.56],[2024,5,7,397.48],[2024,5,17,1.09],[2024,13,2,44.98],[2024,13,11,41.84],[2024,13,18,95.81],[2024,13,26,18.09],[2024,13,32,1.87],[2024,13,42,5.81],[2024,15,15,454.71],[2024,19,14,6.13],[2024,19,20,221.64],[2024,19,25,10.94],[2024,24,12,23.86],[2024,24,21,0.06],[2024,24,23,133.51],[2024,28,1,88.25],[2024,28,30,449.43],[2024,31,31,53.57],[2024,36,37,30.59],[2024,36,38,414.07],[2024,36,39,29.63],[2024,36,40,48.81],[2025,3,3,4.35],[2025,5,6,441.73],[2025,5,7,264.95],[2025,5,17,1.09],[2025,13,2,10.28],[2025,13,11,3.24],[2025,13,18,4.81],[2025,13,26,3.09],[2025,13,42,0.79],[2025,15,15,908.98],[2025,19,20,155.61],[2025,19,41,0.01],[2025,24,8,4.47],[2025,24,12,21.85],[2025,24,21,1.76],[2025,24,22,8.41],[2025,24,23,123.96],[2025,28,1,111.92],[2025,28,30,668.35],[2025,31,31,53.81],[2025,36,37,144.35],[2025,36,38,403.73],[2025,36,39,3.38],[2025,36,40,54.04]],"anios":[2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024,2025],"meta":{"padres":9,"hijos":37,"total":97090.5}}, AUTOR = 'Manuel Toral';
+const ETQ = {"padre": "familias de medios", "hijo": "productos", "volver": "Todos los medios", "de_esta": "medio", "pista": "Da clic en una caja para ver sus productos"};   /* textos de la vista: padre, hijo, encabezados */
+const NOM = D.nombres;
+const fmt  = n => n.toLocaleString('es-MX',{maximumFractionDigits:0});
+const fmt1 = n => n.toLocaleString('es-MX',{minimumFractionDigits:1,maximumFractionDigits:1});
+const css  = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const S='http://www.w3.org/2000/svg';
+const el=(t,a={})=>{const e=document.createElementNS(S,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+
+const svg=document.getElementById('mapa'), tip=document.getElementById('tip');
+let W=0,H=0, anioSel='', inst=null, animando=false;
+
+/* ── squarify ── */
+function squarify(items,w,h){
+  const total=items.reduce((s,d)=>s+d.v,0); if(!total||w<=0||h<=0) return [];
+  const k=(w*h)/total, nodes=items.map(d=>Object.assign({},d,{area:d.v*k}));
+  const out=[], rect={x:0,y:0,w:w,h:h}; let row=[];
+  const worst=(rw,ln)=>{ if(!rw.length) return Infinity;
+    const s=rw.reduce((a,b)=>a+b.area,0);
+    const mx=Math.max.apply(null,rw.map(d=>d.area)), mn=Math.min.apply(null,rw.map(d=>d.area));
+    if(s<=0||mn<=0||ln<=0) return Infinity;   /* nunca dividir entre cero */
+    return Math.max((ln*ln*mx)/(s*s),(s*s)/(ln*ln*mn)); };
+  const flush=()=>{ const s=row.reduce((a,b)=>a+b.area,0);
+    if(rect.w>=rect.h){ const rw=s/rect.h; let yy=rect.y;
+      row.forEach(d=>{const dh=d.area/rw; out.push(Object.assign({},d,{x:rect.x,y:yy,w:rw,h:dh})); yy+=dh;});
+      rect.x+=rw; rect.w-=rw;
+    } else { const rh=s/rect.w; let xx=rect.x;
+      row.forEach(d=>{const dw=d.area/rh; out.push(Object.assign({},d,{x:xx,y:rect.y,w:dw,h:rh})); xx+=dw;});
+      rect.y+=rh; rect.h-=rh; }
+    row=[]; };
+  let i=0;
+  while(i<nodes.length){
+    const ln=Math.min(rect.w,rect.h); if(ln<=0) break;
+    const cand=row.concat([nodes[i]]);
+    if(!row.length||worst(cand,ln)<=worst(row,ln)){ row=cand; i++; } else flush();
+  }
+  if(row.length) flush();
+  return out;
+}
+const tono=(v,max)=>{const r=v/max; return r>=0.50?4:r>=0.22?3:r>=0.08?2:1;};
+
+/* ── agregados ── */
+function filasAnio(){
+  return anioSel==='' ? D.filas : D.filas.filter(f=>f[0]===+anioSel);
+}
+function nivelInstituciones(){
+  const m=new Map();
+  filasAnio().forEach(f=>m.set(f[1],(m.get(f[1])||0)+f[3]));
+  return [...m].map(([i,v])=>({i:i,n:NOM[i],v:v})).sort((a,b)=>b.v-a.v);
+}
+function nivelEmpresas(idInst){
+  const m=new Map();
+  filasAnio().forEach(f=>{ if(f[1]===idInst) m.set(f[2],(m.get(f[2])||0)+f[3]); });
+  return [...m].map(([i,v])=>({i:i,n:NOM[i],v:v})).sort((a,b)=>b.v-a.v);
+}
+/* Cuántas empresas tiene cada institución, para el tooltip. Se calcula UNA vez por
+   cambio de año: hacerlo dentro del handler recorría las 46 mil filas en cada
+   movimiento del ratón. */
+let CUENTA_EMP=new Map();
+function recuentaEmpresas(){
+  const m=new Map();
+  filasAnio().forEach(f=>{
+    let s=m.get(f[1]); if(!s){ s=new Set(); m.set(f[1],s); }
+    s.add(f[2]);
+  });
+  CUENTA_EMP=new Map([...m].map(([k,s])=>[k,s.size]));
+}
+
+/* ── tooltip ── */
+function verTip(e,html){
+  tip.innerHTML=html; tip.style.opacity=1;
+  const r=tip.getBoundingClientRect();
+  let x=e.clientX+15, y=e.clientY+15;
+  if(x+r.width>innerWidth-8) x=e.clientX-r.width-15;
+  if(y+r.height>innerHeight-8) y=e.clientY-r.height-15;
+  tip.style.left=x+'px'; tip.style.top=y+'px';
+}
+const ocultarTip=()=>tip.style.opacity=0;
+
+/* ── dibujo ── */
+function dibuja(cells,total,esInstitucion,desde){
+  svg.textContent='';
+  const max=cells.length?cells[0].v:1;
+  const nodos=[];
+  const fam = esInstitucion ? 'r' : 'a';   /* rosa: instituciones · ámbar: empresas */
+  cells.forEach(c=>{
+    const paso=tono(c.v,max);
+    const g=el('g',{class:'cel'+(esInstitucion?' click':'')});
+    const r=el('rect',{rx:3,fill:css('--'+fam+paso)});
+    g.appendChild(r);
+    const t1=el('text',{class:'nom',fill:css('--on-'+fam+paso)});
+    const t2=el('text',{class:'val',fill:css('--on-'+fam+paso)});
+    g.appendChild(t1); g.appendChild(t2);
+
+    const pct=(100*c.v/total).toFixed(1);
+    const extra=esInstitucion
+      ? '<br>' + fmt(CUENTA_EMP.get(c.i)||0) + ' ' + ETQ.hijo + ' · clic para abrir'
+      : '';
+    g.addEventListener('mousemove',e=>verTip(e,
+      '<b>'+c.n+'</b><span class="n">'+fmt1(c.v)+'</span> MDP de 2020<br><span class="n">'+
+      pct+'%</span> '+(esInstitucion?'del gasto federal':'de '+ETQ.de_esta)+extra));
+    g.addEventListener('mouseleave',ocultarTip);
+    if(esInstitucion){
+      g.setAttribute('tabindex','0');
+      g.setAttribute('role','button');
+        g.setAttribute('aria-label',c.n+', '+fmt1(c.v)+' millones, abrir '+ETQ.hijo);
+      g.addEventListener('click',()=>entrar(c));
+      g.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();entrar(c);}});
+    }
+    svg.appendChild(g);
+    nodos.push({g:g,r:r,t1:t1,t2:t2,c:c});
+  });
+
+  /* `desde` mapea el lienzo completo dentro de una caja: las celdas nacen ahí
+     y crecen hasta su lugar definitivo. */
+  const pos=(c,f)=>{
+    if(!f) return c;
+    return {x:f.x+c.x*f.w/W, y:f.y+c.y*f.h/H, w:c.w*f.w/W, h:c.h*f.h/H};
+  };
+  const pinta=(p)=>{
+    nodos.forEach(nd=>{
+      const a=pos(nd.c,desde), b=nd.c;
+      const x=a.x+(b.x-a.x)*p, y=a.y+(b.y-a.y)*p;
+      const w=Math.max(a.w+(b.w-a.w)*p,0), h=Math.max(a.h+(b.h-a.h)*p,0);
+      nd.r.setAttribute('x',x); nd.r.setAttribute('y',y);
+      nd.r.setAttribute('width',w); nd.r.setAttribute('height',h);
+      const ver = p>0.98 && w>54 && h>22;
+      nd.t1.setAttribute('opacity',ver?1:0);
+      nd.t2.setAttribute('opacity',ver&&h>36?1:0);
+      if(ver){
+        const lim=Math.floor(w/6.1);
+        nd.t1.textContent = nd.c.n.length>lim ? nd.c.n.slice(0,lim-1)+'…' : nd.c.n;
+        nd.t1.setAttribute('x',x+7); nd.t1.setAttribute('y',y+17);
+        nd.t1.setAttribute('font-size',12);
+        nd.t2.textContent = fmt1(nd.c.v);
+        nd.t2.setAttribute('x',x+7); nd.t2.setAttribute('y',y+31);
+        nd.t2.setAttribute('font-size',11);
+      }
+    });
+  };
+  if(!desde){ pinta(1); return; }
+  animando=true;
+  const t0=performance.now(), dur=460;
+  const suave=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+  (function paso(t){
+    const p=Math.min((t-t0)/dur,1);
+    pinta(suave(p));
+    if(p<1) requestAnimationFrame(paso); else { animando=false; pinta(1); }
+  })(t0);
+}
+
+/* ── navegación ── */
+let ultimaCaja=null;   /* la caja desde la que se entró, para animar el regreso */
+function entrar(c){
+  if(animando) return;
+  ultimaCaja={x:+c.x,y:+c.y,w:+c.w,h:+c.h};
+  inst=c.i;
+  render(ultimaCaja);
+}
+function salir(){
+  if(animando) return;
+  inst=null;
+  render(ultimaCaja);   /* las instituciones se despliegan desde donde estabas */
+  ultimaCaja=null;
+}
+
+function render(desde){
+  const rect=document.getElementById('lienzo').getBoundingClientRect();
+  W=Math.max(rect.width,1); H=Math.max(rect.height,1);
+  svg.setAttribute('viewBox','0 0 '+W+' '+H);
+
+  const esRaiz = inst===null;
+  const datos = esRaiz ? nivelInstituciones() : nivelEmpresas(inst);
+  const total = datos.reduce((s,d)=>s+d.v,0);
+  const cells = squarify(datos,W,H);
+
+  document.getElementById('volver').hidden = esRaiz;
+  const etqAnio = anioSel==='' ? '2012–2025' : anioSel;
+  document.getElementById('ruta').innerHTML = esRaiz
+    ? '<span class="paso">'+ETQ.volver+'</span><span class="sep">·</span>'+
+      '<span class="cifra">'+fmt(datos.length)+' '+ETQ.padre+' · '+fmt1(total)+' MDP · '+etqAnio+'</span>'+
+      '<span class="sep">·</span><span class="pista">'+ETQ.pista+'</span>'
+    : '<a id="raiz">'+ETQ.volver+'</a><span class="sep">›</span>'+
+      '<span class="paso">'+NOM[inst]+'</span><span class="sep">·</span>'+
+      '<span class="cifra">'+fmt(datos.length)+' '+ETQ.hijo+' · '+fmt1(total)+' MDP · '+etqAnio+'</span>';
+  const raiz=document.getElementById('raiz');
+  if(raiz) raiz.addEventListener('click',salir);
+
+  dibuja(cells,total,esRaiz,desde);
+}
+
+/* ── buscador de instituciones ── */
+/* ̀-ͯ = marcas combinantes: "México" y "mexico" deben coincidir. */
+const pliega = s => s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+const NOM_PLEGADO = NOM.map((n,i)=>pliega(n+' '+(D.alias[i]||'')));
+const cajaQ=document.getElementById('q'), lista=document.getElementById('sug');
+let sugs=[], marcada=-1;
+
+/* La caja de una institución en el nivel raíz, para animar el zoom desde ella
+   aunque llegues por el buscador y no por un clic. */
+function cajaDe(id){
+  const datos=nivelInstituciones();
+  const cells=squarify(datos,W,H);
+  for(let i=0;i<datos.length;i++) if(datos[i].i===id) return cells[i];
+  return null;
+}
+function irA(id){
+  cierraSug(); cajaQ.value=''; cajaQ.blur();
+  if(animando) return;
+  const caja = inst===null ? cajaDe(id) : null;   /* si ya estás dentro, salta sin animar */
+  ultimaCaja = caja;
+  inst = id;
+  render(caja);
+}
+function cierraSug(){
+  lista.hidden=true; marcada=-1;
+  cajaQ.setAttribute('aria-expanded','false');
+}
+function pintaSug(){
+  const q=pliega(cajaQ.value.trim());
+  if(!q){ cierraSug(); return; }
+  sugs=nivelInstituciones().filter(d=>NOM_PLEGADO[d.i].indexOf(q)>=0).slice(0,40);
+  lista.innerHTML = sugs.length
+    ? sugs.map((d,k)=>'<li role="option" data-k="'+k+'" aria-selected="'+(k===marcada)+'">'+
+        '<span>'+d.n+'</span><span class="mdp">'+fmt1(d.v)+' MDP</span></li>').join('')
+    : '<li class="vacio">Sin resultados en '+(anioSel===''?'la serie':anioSel)+'</li>';
+  lista.hidden=false;
+  cajaQ.setAttribute('aria-expanded','true');
+  Array.prototype.forEach.call(lista.querySelectorAll('li[data-k]'),li=>{
+    li.addEventListener('mousedown',e=>{e.preventDefault(); irA(sugs[+li.dataset.k].i);});
+  });
+}
+function mueve(paso){
+  if(lista.hidden||!sugs.length) return;
+  marcada=(marcada+paso+sugs.length)%sugs.length;
+  Array.prototype.forEach.call(lista.querySelectorAll('li[data-k]'),(li,k)=>{
+    li.setAttribute('aria-selected',k===marcada);
+    if(k===marcada) li.scrollIntoView({block:'nearest'});
+  });
+}
+let tq;
+cajaQ.addEventListener('input',()=>{clearTimeout(tq);marcada=-1;tq=setTimeout(pintaSug,110);});
+cajaQ.addEventListener('focus',()=>{ if(cajaQ.value.trim()) pintaSug(); });
+cajaQ.addEventListener('blur',()=>setTimeout(cierraSug,120));
+cajaQ.addEventListener('keydown',e=>{
+  if(e.key==='ArrowDown'){e.preventDefault();mueve(1);}
+  else if(e.key==='ArrowUp'){e.preventDefault();mueve(-1);}
+  else if(e.key==='Enter'){
+    e.preventDefault();
+    if(sugs.length) irA(sugs[marcada>=0?marcada:0].i);
+  } else if(e.key==='Escape'){ cajaQ.value=''; cierraSug(); }
+});
+
+/* ── controles ── */
+document.getElementById('anio').innerHTML =
+  '<option value="">Todos los años (2012–2025)</option>'+
+  D.anios.map(a=>'<option value="'+a+'">'+a+'</option>').join('');
+document.getElementById('anio').addEventListener('change',e=>{
+  anioSel=e.target.value;
+  recuentaEmpresas();
+  /* Si la institución abierta no gastó ese año, se vuelve a la raíz. */
+  if(inst!==null && !nivelEmpresas(inst).length){ inst=null; ultimaCaja=null; }
+  render(null);
+});
+document.getElementById('volver').addEventListener('click',salir);
+addEventListener('keydown',e=>{
+  if(e.key==='Escape' && inst!==null && document.activeElement!==cajaQ) salir();
+});
+
+let t;
+addEventListener('resize',()=>{clearTimeout(t);t=setTimeout(()=>render(null),160);});
+recuentaEmpresas();
+render(null);
+</script>
+</body>
+</html>

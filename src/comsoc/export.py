@@ -68,9 +68,16 @@ def publicar_descargas(df: pd.DataFrame | None = None) -> dict[str, Path]:
     destino.mkdir(parents=True, exist_ok=True)
 
     rutas = {}
-    rutas["csv"] = destino / "comsoc_polizas.csv.gz"
-    df.to_csv(rutas["csv"], index=False, compression={"method": "gzip", "compresslevel": 6},
-              encoding="utf-8")
+    # ZIP y no GZIP: Windows abre .zip con doble clic y .gz no, así que un .csv.gz
+    # se descarga bien y aun así el usuario no puede abrirlo sin instalar nada.
+    # Pesan casi lo mismo.
+    rutas["csv"] = destino / "comsoc_polizas_csv.zip"
+    df.to_csv(rutas["csv"], index=False, encoding="utf-8-sig",
+              compression={"method": "zip", "archive_name": "comsoc_polizas.csv"})
+
+    viejo = destino / "comsoc_polizas.csv.gz"
+    if viejo.exists():
+        viejo.unlink()
 
     rutas["parquet"] = destino / "comsoc_polizas.parquet"
     try:
@@ -89,7 +96,7 @@ def tamanos_descargas() -> dict[str, float]:
 
     destino = DOCS_DIR / "datos"
     return {p.name: round(p.stat().st_size / 1e6, 1)
-            for p in sorted(destino.glob("comsoc_polizas.*"))} if destino.exists() else {}
+            for p in sorted(destino.glob("comsoc_polizas*"))} if destino.exists() else {}
 
 
 def por_anio(df: pd.DataFrame, carpeta: str = "por_anio") -> list[Path]:

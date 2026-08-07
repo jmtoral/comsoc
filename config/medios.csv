@@ -1,0 +1,38 @@
+producto_clave,familia,producto
+31,Televisión,Televisión abierta nacional
+32,Televisión,Televisión abierta local
+33,Televisión,Televisión restringida
+39,Televisión,Televisión internacional
+34,Radio,Cadenas radiofónicas
+35,Radio,Radiodifusoras locales
+46,Radio,Radiodifusoras internacionales
+21,Diarios,Diarios de la Ciudad de México
+22,Diarios,Diarios de los estados
+25,Diarios,Medios impresos internacionales
+43,Diarios,Encartes
+60,Diarios,Suplementos
+68,Revistas,Revistas
+37,Internet,Internet
+36,Cine,Cine
+75,Exterior,Mobiliario urbano
+47,Exterior,Espectaculares
+58,Exterior,Publicidad móvil
+59,Exterior,Videobús
+78,Exterior,Carteles
+77,Exterior,Rótulos
+76,Exterior,Mantas
+63,Producción y servicios,Producción
+67,Producción y servicios,Diseño y servicios publicitarios
+66,Producción y servicios,Estudios de pre y post campaña
+74,Producción y servicios,Preproducción
+69,Producción y servicios,Postproducción
+70,Producción y servicios,Copiado
+82,Otros,Producto integrado
+73,Otros,Otros medios complementarios
+84,Otros,Artículos promocionales
+79,Otros,Folletos
+85,Otros,Servicios integrales de promoción
+81,Otros,Dípticos
+80,Otros,Trípticos
+72,Otros,Tarjetas telefónicas
+83,Otros,Puntos de venta

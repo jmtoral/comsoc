@@ -111,7 +111,11 @@ def normalizar_llaves(df: pd.DataFrame) -> pd.DataFrame:
                 .str.replace(r"\s+", " ", regex=True)
                 .str.replace(r"\s+([.,])", r"\1", regex=True)  # "C.V ." -> "C.V."
                 .str.strip()
-                .replace({"nan": pd.NA, "None": pd.NA, "": pd.NA})
+                # "<NA>" y "NaT" son lo que produce astype(str) sobre un nulo de
+                # pandas. Sin ellos, 176 mil filas acaban con ese texto como si
+                # fuera un dato, y así se publicaba en el CSV.
+                .replace({"nan": pd.NA, "None": pd.NA, "": pd.NA,
+                          "<NA>": pd.NA, "NaT": pd.NA, "nat": pd.NA})
             )
     if "rfc_beneficiario" in df.columns:
         df["rfc_beneficiario"] = (
@@ -150,6 +154,20 @@ def agregar_banderas(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# Texto que produce `astype(str)` sobre un nulo de pandas y que se cuela como si
+# fuera un dato. Se barren todas las columnas de texto, no solo las conocidas:
+# apareció en 16 columnas distintas y 176 mil filas antes de detectarse.
+BASURA_NULA = ["<NA>", "NaT", "nan", "None", "NAN", "nat", ""]
+
+
+def barrer_nulos_de_texto(df: pd.DataFrame) -> pd.DataFrame:
+    columnas = [c for c in df.columns
+                if df[c].dtype == object or str(df[c].dtype) == "string"]
+    for col in columnas:
+        df[col] = df[col].replace(dict.fromkeys(BASURA_NULA, pd.NA))
+    return df
+
+
 def limpiar(df: pd.DataFrame) -> pd.DataFrame:
     """Pipeline completo de limpieza sobre el crudo concatenado."""
     df = df.copy()
@@ -169,4 +187,5 @@ def limpiar(df: pd.DataFrame) -> pd.DataFrame:
     if fuera:
         print(f"  [calidad] {fuera:,} filas con fecha_gasto fuera de su año fuente (marcadas, no corregidas)")
 
+    df = barrer_nulos_de_texto(df)
     return df

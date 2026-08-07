@@ -104,6 +104,7 @@ def construir_datos(df: pd.DataFrame) -> dict:
     def sexenio(y):
         return "EPN" if y <= 2018 else ("AMLO" if y <= 2024 else "Sheinbaum")
 
+    anios_serie = [int(y) for y in a.index]
     serie = [{"anio": int(y), "real": round(float(r.real / 1e6), 1),
               "nominal": round(float(r.nominal / 1e6), 1), "obs": int(r.obs),
               "polizas": int(r.polizas), "sexenio": sexenio(y)} for y, r in a.iterrows()]
@@ -158,12 +159,33 @@ def construir_datos(df: pd.DataFrame) -> dict:
                             int(round(10000 * float((sh ** 2).sum())))])
         conc[clave] = filas_c
 
+    # Medios por año: 9 familias x 14 años. Se manda la serie completa y el %
+    # se calcula en el navegador.
+    fam = (b.groupby(["medio_familia", "anio_fuente"], observed=True)["monto_real"].sum() / 1e6)
+    orden_fam = (fam.groupby(level=0).sum().sort_values(ascending=False).index.tolist())
+    medios = {"familias": orden_fam,
+              "serie": {f: [round(float(fam.get((f, a), 0.0)), 1) for a in anios_serie]
+                        for f in orden_fam}}
+
+    # Campañas: el nombre solo existe desde 2024; antes solo hay una clave opaca.
+    camp = b[b.campana_nombre.notna()]
+    campanas = {}
+    for anio, g in camp.groupby("anio_fuente"):
+        s = (g.groupby("campana_nombre", observed=True)["monto_real"].sum() / 1e6)
+        s = s[s > 0].sort_values(ascending=False)
+        campanas[str(int(anio))] = {
+            "items": [{"n": str(k), "v": round(float(v), 2)} for k, v in s.items()],
+            "total": round(float(s.sum()), 1)}
+
     return {"serie": serie,
             "instituciones": treemap(**PANELES["instituciones"]),
             "beneficiarios": treemap(**PANELES["beneficiarios"]),
             "tabla": tabla,
             "conc": conc,
-            "meta": {"renglones": int(len(b)), "polizas": int(b.poliza_id.nunique()),
+            "medios": medios,
+            "campanas": campanas,
+            "meta": {"renglones": int(len(b)), "columnas": int(len(df.columns)),
+                     "polizas": int(b.poliza_id.nunique()),
                      "total_real": round(float(b.monto_real.sum() / 1e6), 1)}}
 
 
@@ -331,6 +353,42 @@ td:first-child{font-family:var(--font-body);color:var(--ink)}
   font-variant-numeric:tabular-nums}
 .vacio{text-align:center;padding:32px 12px;color:var(--ink-3);font-size:14.5px}
 
+/* ── rampa de campañas: tercera familia, verde azulado ──
+   Pasa el criterio ordinal sobre la tarjeta crema (ΔL 0.082/0.122/0.128, paso más
+   claro a 2.35 de contraste) y no se confunde ni con el rosa ni con el ámbar. */
+:root{
+  --c1:#4FB8A3; --c2:#2E9E8B; --c3:#17766A; --c4:#0C4E45;
+  --on-c1:#331018; --on-c2:#331018; --on-c3:#FFFCF4; --on-c4:#FFFCF4;
+  --a1:#D8930F; --a2:#B8790A; --a3:#966006; --a4:#7A4A02;
+}
+
+/* ── portadas de las vistas de pantalla completa ── */
+.portadas{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px}
+.portada{display:flex;flex-direction:column;gap:9px;padding:20px;border-radius:16px;
+  border:1px solid var(--line-2);background:var(--surface);box-shadow:var(--shadow);
+  text-decoration:none;color:var(--ink-2);font-size:14px;line-height:1.5;
+  transition:border-color .14s ease,transform .14s ease,box-shadow .14s ease}
+.portada:hover{border-color:var(--accent);transform:translateY(-2px);
+  box-shadow:0 4px 10px rgba(51,16,24,.07),0 14px 34px rgba(51,16,24,.08)}
+.portada b{font-family:var(--font-display);font-size:21px;color:var(--ink);font-weight:700;
+  letter-spacing:-.01em}
+.portada .mini{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(3,1fr);
+  gap:3px;height:86px;margin-bottom:4px}
+.portada .mini i{display:block;border-radius:3px}
+.portada .ir{font-family:var(--font-display);font-weight:700;color:var(--accent-deep);
+  font-size:14px;margin-top:auto;letter-spacing:.02em}
+
+/* ── paneles de medios ── */
+.paneles{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px}
+.panel{border:1px solid var(--line);border-radius:12px;padding:12px 12px 8px;
+  background:var(--surface-2)}
+.panel h4{font-family:var(--font-display);font-size:14.5px;margin:0 0 2px;color:var(--ink);
+  font-weight:700}
+.panel .cifra{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-3);
+  font-variant-numeric:tabular-nums;margin:0 0 8px}
+.panel svg{width:100%;height:auto;display:block}
+.nota-pie{font-size:12.5px;color:var(--ink-3);margin:14px 0 0}
+
 /* ── descargas ── */
 .bajar{display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:12px}
 .bj{display:flex;flex-direction:column;gap:3px;text-align:left;padding:16px 18px;border-radius:14px;
@@ -441,11 +499,74 @@ CUERPO = """
       </details>
     </div>
 
-    <p class="salto">
-      <a href="quien-paga-a-quien.html">&iquest;Qui&eacute;n le paga a qui&eacute;n?</a>
-      Un treemap de pantalla completa donde cada caja es una instituci&oacute;n y, al darle clic,
-      se abren las empresas que recibieron su dinero.
+  </section>
+
+  <section>
+    <h2>Explora el gasto a pantalla completa</h2>
+    <p class="sub">Dos treemaps interactivos: cada caja se abre al darle clic.</p>
+    <div class="portadas">
+      <a class="portada" href="quien-paga-a-quien.html">
+        <span class="mini" aria-hidden="true">
+          <i style="grid-area:1/1/3/3;background:var(--r4)"></i>
+          <i style="grid-area:1/3/2/5;background:var(--r3)"></i>
+          <i style="grid-area:2/3/3/4;background:var(--r2)"></i>
+          <i style="grid-area:2/4/3/5;background:var(--r1)"></i>
+          <i style="grid-area:3/1/4/3;background:var(--r2)"></i>
+          <i style="grid-area:3/3/4/5;background:var(--r1)"></i>
+        </span>
+        <b>&iquest;Qui&eacute;n le paga a qui&eacute;n?</b>
+        <span>Cada caja es una instituci&oacute;n. Da clic y se abren las empresas que
+          recibieron su dinero &mdash; el IMSS le pag&oacute; a 705 distintas.</span>
+        <span class="ir">Abrir &rarr;</span>
+      </a>
+      <a class="portada" href="medios.html">
+        <span class="mini" aria-hidden="true">
+          <i style="grid-area:1/1/4/3;background:var(--a4)"></i>
+          <i style="grid-area:1/3/3/5;background:var(--a3)"></i>
+          <i style="grid-area:3/3/4/4;background:var(--a2)"></i>
+          <i style="grid-area:3/4/4/5;background:var(--a1)"></i>
+        </span>
+        <b>&iquest;En qu&eacute; medios?</b>
+        <span>Televisi&oacute;n, radio, diarios, internet y exterior. Da clic en una familia
+          y se abre el desglose por producto.</span>
+        <span class="ir">Abrir &rarr;</span>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <h2>En qu&eacute; medios se gasta, a lo largo del tiempo</h2>
+    <p class="sub">Cada panel es una familia de medios y muestra qu&eacute; porcentaje del gasto
+      del a&ntilde;o se llev&oacute;. Comparten la misma escala, as&iacute; que las alturas se
+      pueden comparar entre paneles.</p>
+    <div class="card">
+      <div class="filtros">
+        <select id="mMedida" aria-label="Medida">
+          <option value="pct">Como % del gasto del a&ntilde;o</option>
+          <option value="abs">En millones de pesos de 2020</option>
+        </select>
+      </div>
+      <div id="mPaneles" class="paneles"></div>
+      <p class="nota-pie" id="mNota"></p>
+    </div>
+  </section>
+
+  <section>
+    <h2>En qu&eacute; campa&ntilde;as</h2>
+    <p class="sub">Cada cuadro es una campa&ntilde;a y su tama&ntilde;o es lo que cost&oacute;.</p>
+    <p class="aviso">
+      <b>Solo hay nombres de campa&ntilde;a desde 2024.</b> Antes, la fuente publica una clave
+      opaca como <code>091/22-2001-TC18-00625</code> que no dice qu&eacute; se anunci&oacute;.
+      Por eso esta secci&oacute;n empieza en 2024 y no cubre la serie completa.
     </p>
+    <div class="card">
+      <div class="filtros">
+        <select id="kAnio" aria-label="A&ntilde;o de la campa&ntilde;a"></select>
+      </div>
+      <p class="cuenta" id="kCuenta"></p>
+      <svg id="mapCamp" viewBox="0 0 1000 470" role="img"
+           aria-label="Treemap de campa&ntilde;as"></svg>
+    </div>
   </section>
 
   <section>
@@ -531,10 +652,10 @@ CUERPO = """
       rehacerlo o contradecirlo.</p>
     <div class="card">
       <div class="bajar">
-        <a class="bj primario" href="datos/comsoc_polizas.csv.gz" download>
+        <a class="bj primario" href="datos/comsoc_polizas_csv.zip" download>
           <b>Dataset completo &middot; CSV</b>
-          <span>__PESO_CSV__ MB comprimido &middot; __RENGLONES__ renglones &times; 56 columnas</span>
-          <span class="q">Lo abre Excel, R, pandas o Stata</span>
+          <span>ZIP de __PESO_CSV__ MB &middot; __RENGLONES__ renglones &times; __COLUMNAS__ columnas</span>
+          <span class="q">Doble clic para abrirlo; adentro va el CSV</span>
         </a>
         <a class="bj" href="datos/comsoc_polizas.parquet" download>
           <b>Dataset completo &middot; Parquet</b>
@@ -791,6 +912,89 @@ function selAnio(a){
     '<th>Renglones</th><th style="text-align:left">Sexenio</th></tr></thead><tbody>'+rows+'</tbody>';
 })();
 
+/* ── medios en el tiempo: pequeños múltiplos ────────────────────────── */
+/* Nueve familias no caben como nueve colores categóricos —el límite práctico son
+   ocho y ninguna paleta de nueve tonos sobrevive al daltonismo—, así que cada una
+   va en su propio panel con un solo acento y escala compartida. */
+const MED = DATA.medios, ANIOS = serie.map(d=>d.anio);
+function pintaMedios(){
+  const modo = document.getElementById('mMedida').value;
+  const tot = {}; serie.forEach(d=>tot[d.anio]=d.real);
+  const val = f => MED.serie[f].map((v,i)=> modo==='pct' ? (tot[ANIOS[i]]?100*v/tot[ANIOS[i]]:0) : v);
+  const max = Math.max.apply(null, MED.familias.map(f=>Math.max.apply(null,val(f))));
+  const W=250,H=104,ML=6,MR=6,MT=8,MB=17;
+
+  document.getElementById('mPaneles').innerHTML = MED.familias.map(f=>{
+    const v=val(f), tt=MED.serie[f].reduce((a,b)=>a+b,0);
+    const bw=(W-ML-MR)/v.length;
+    const barras = v.map((x,i)=>{
+      const h=max?((H-MT-MB)*x/max):0;
+      const y=H-MB-h;
+      return '<rect x="'+(ML+i*bw+1).toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+(bw-2).toFixed(1)+
+        '" height="'+Math.max(h,0.6).toFixed(1)+'" rx="1.5" fill="var(--accent)"'+
+        (i===v.length-1?' opacity="1"':' opacity=".82"')+
+        '><title>'+ANIOS[i]+': '+(modo==='pct'?x.toFixed(1)+'%':fmt1(x)+' MDP')+'</title></rect>';
+    }).join('');
+    const ejes = '<line x1="'+ML+'" x2="'+(W-MR)+'" y1="'+(H-MB)+'" y2="'+(H-MB)+
+      '" stroke="var(--line-2)" stroke-width="1"/>'+
+      '<text x="'+ML+'" y="'+(H-4)+'" font-size="9" fill="var(--ink-3)" font-family="var(--font-mono)">'+
+      ANIOS[0]+'</text>'+
+      '<text x="'+(W-MR)+'" y="'+(H-4)+'" font-size="9" fill="var(--ink-3)" text-anchor="end" font-family="var(--font-mono)">'+
+      ANIOS[ANIOS.length-1]+'</text>';
+    const ult = v[v.length-1];
+    return '<div class="panel"><h4>'+f+'</h4><p class="cifra">'+
+      (modo==='pct'? ult.toFixed(1)+'% en '+ANIOS[ANIOS.length-1] : fmt1(ult)+' MDP en '+ANIOS[ANIOS.length-1])+
+      ' · '+fmt1(tt)+' MDP acumulados</p><svg viewBox="0 0 '+W+' '+H+'">'+ejes+barras+'</svg></div>';
+  }).join('');
+
+  document.getElementById('mNota').textContent = modo==='pct'
+    ? 'Escala común de 0 a '+max.toFixed(0)+'% en los nueve paneles. Pasa el cursor por cada barra para ver el año.'
+    : 'Escala común de 0 a '+fmt(max)+' MDP en los nueve paneles.';
+}
+document.getElementById('mMedida').addEventListener('change',pintaMedios);
+pintaMedios();
+
+/* ── treemap de campañas ────────────────────────────────────────────── */
+const CAMP = DATA.campanas;
+const aniosCamp = Object.keys(CAMP).sort();
+function pintaCamp(){
+  const an = document.getElementById('kAnio').value;
+  const d = CAMP[an]; const svg = document.getElementById('mapCamp');
+  svg.textContent='';
+  if(!d){ return; }
+  const items = d.items, max = items[0].v, G = 2;
+  document.getElementById('kCuenta').innerHTML =
+    '<b>'+fmt(items.length)+'</b> campañas · <b>'+fmt1(d.total)+'</b> MDP de 2020 en '+an;
+  const tonoC = v => { const r=v/max; return r>=0.50?4:r>=0.22?3:r>=0.08?2:1; };
+  squarify(items,0,0,1000,452).forEach(c=>{
+    const paso=tonoC(c.v);
+    const g=el('g',{class:'cell'});
+    const w=Math.max(c.w-G,0), h=Math.max(c.h-G,0);
+    g.appendChild(el('rect',{x:c.x+G/2,y:c.y+G/2,width:w,height:h,rx:3,fill:css('--c'+paso)}));
+    if(w>46&&h>17){
+      const ink=css('--on-c'+paso), lim=Math.floor(w/5.1);
+      const t1=el('text',{x:c.x+6,y:c.y+16,class:'cell-name',fill:ink});
+      t1.textContent = c.n.length>lim ? c.n.slice(0,lim-1)+'…' : c.n;
+      g.appendChild(t1);
+      if(h>30){ const t2=el('text',{x:c.x+6,y:c.y+29,class:'cell-val',fill:ink,opacity:.85});
+        t2.textContent=fmt1(c.v); g.appendChild(t2); }
+    }
+    const pct=(100*c.v/d.total).toFixed(1);
+    g.addEventListener('mousemove',e=>showTip(e,'<b>'+c.n+'</b><span class="n">'+fmt1(c.v)+
+      '</span> MDP de 2020<br><span class="n">'+pct+'%</span> de las campañas de '+an));
+    g.addEventListener('mouseleave',hideTip);
+    svg.appendChild(g);
+  });
+  credito(svg,998,466,'end');
+}
+(function initCamp(){
+  document.getElementById('kAnio').innerHTML =
+    aniosCamp.map(a=>'<option value="'+a+'">'+a+'</option>').join('');
+  document.getElementById('kAnio').value = aniosCamp[aniosCamp.length-1];
+  document.getElementById('kAnio').addEventListener('change',pintaCamp);
+  pintaCamp();
+})();
+
 /* ── concentración de proveedores ───────────────────────────────────── */
 /* El diccionario de nombres se comparte con el buscador, así que se declara aquí,
    antes del primer uso: `const` no se puede leer antes de su línea. */
@@ -1017,9 +1221,10 @@ def _fragmento(datos: dict) -> str:
 
     pesos = tamanos_descargas()
     cuerpo = (CUERPO
-              .replace("__PESO_CSV__", str(pesos.get("comsoc_polizas.csv.gz", "~15")))
+              .replace("__PESO_CSV__", str(pesos.get("comsoc_polizas_csv.zip", "~16")))
               .replace("__PESO_PARQUET__", str(pesos.get("comsoc_polizas.parquet", "~12")))
               .replace("__RENGLONES__", f"{datos['meta']['renglones']:,}")
+              .replace("__COLUMNAS__", str(datos["meta"]["columnas"]))
               .replace("__POLIZAS__", f"{datos['meta']['polizas']:,}")
               .replace("__TOP__", str(PANELES["beneficiarios"]["top"]))
               .replace("__FILAS__", f"{len(datos['tabla']['filas']):,}")

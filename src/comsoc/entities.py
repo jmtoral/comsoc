@@ -89,11 +89,30 @@ def canonizar(serie: pd.Series, campo: str, minusculas: bool = True) -> pd.Serie
     return salida.str.strip()
 
 
+@lru_cache(maxsize=1)
+def catalogo_medios() -> pd.DataFrame:
+    """`producto_clave` -> familia de medio y nombre limpio del producto.
+
+    La clave es el catálogo estable: existe al 100% en los 14 años y solo tiene 37
+    valores. `producto_desc` es la misma información pero con ruido de captura —la
+    clave 21 aparece con 17 redacciones distintas—, y `clase_medio` solo existe en
+    2024-2025. Por eso el medio se deriva de la clave, no del texto.
+    """
+    cat = pd.read_csv(CONFIG_DIR / "medios.csv", dtype={"producto_clave": str})
+    return cat.set_index("producto_clave")
+
+
 def agregar_canonicos(df: pd.DataFrame) -> pd.DataFrame:
-    """Agrega `beneficiario_canonico` e `institucion_canonica`."""
+    """Agrega los nombres canónicos de beneficiario, institución y medio."""
     df = df.copy()
     df["beneficiario_canonico"] = canonizar(df["beneficiario"], "beneficiario", minusculas=True)
     df["institucion_canonica"] = canonizar(df["institucion"], "institucion", minusculas=False)
+
+    cat = catalogo_medios()
+    clave = df["producto_clave"].astype("string").str.strip().str.replace(r"\.0$", "", regex=True)
+    df["medio_familia"] = clave.map(cat["familia"]).fillna("Sin clasificar")
+    df["medio_producto"] = clave.map(cat["producto"]).fillna(
+        df["producto_desc"].astype("string").str.title()).fillna("Sin clasificar")
     return df
 
 
