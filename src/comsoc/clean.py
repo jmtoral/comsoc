@@ -118,9 +118,14 @@ def normalizar_llaves(df: pd.DataFrame) -> pd.DataFrame:
                           "<NA>": pd.NA, "NaT": pd.NA, "nat": pd.NA})
             )
     if "rfc_beneficiario" in df.columns:
-        df["rfc_beneficiario"] = (
-            df["rfc_beneficiario"].astype(str).str.upper().str.replace(r"[^A-Z0-9]", "", regex=True)
-        ).replace({"": pd.NA, "NAN": pd.NA})
+        rfc = (df["rfc_beneficiario"].astype(str).str.upper()
+               .str.replace(r"[^A-Z0-9Ñ&]", "", regex=True))
+        # Se valida la FORMA, no una lista de textos basura. `astype(str)` sobre un
+        # nulo deja "<NA>", el regex se come los símbolos y queda "NA": 68,797 filas
+        # parecían tener RFC cuando no lo tienen. Cualquier cosa que no sea
+        # 3-4 letras + 6 dígitos + homoclave no es un RFC.
+        valido = rfc.str.fullmatch(r"[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{2,4}")
+        df["rfc_beneficiario"] = rfc.where(valido.fillna(False), pd.NA)
     return df
 
 

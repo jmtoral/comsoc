@@ -236,6 +236,17 @@ const ETQ = __ETIQUETAS__;   /* textos de la vista: padre, hijo, encabezados */
 const NOM = D.nombres;
 const fmt  = n => n.toLocaleString('es-MX',{maximumFractionDigits:0});
 const fmt1 = n => n.toLocaleString('es-MX',{minimumFractionDigits:1,maximumFractionDigits:1});
+
+/* Los montos llegan en millones y redondearlos a un decimal deja en "0.0" al 15.6%
+   de las cajas, que así parecen valer cero cuando la menor son 78 pesos. La unidad
+   se adapta al tamaño. */
+function fmtM(v, compacto){
+  const a = Math.abs(v);
+  if(a >= 1)      return fmt1(v) + (compacto ? '' : ' MDP');
+  if(a >= 0.001)  return fmt(v*1e3) + (compacto ? ' mil' : ' mil pesos');
+  if(a > 0)       return fmt(v*1e6) + (compacto ? ' $' : ' pesos');
+  return compacto ? '0' : 'sin gasto';
+}
 const css  = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const S='http://www.w3.org/2000/svg';
 const el=(t,a={})=>{const e=document.createElementNS(S,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
@@ -325,12 +336,12 @@ function dibuja(cells,total,esInstitucion,desde){
     const t2=el('text',{class:'val',fill:css('--on-'+fam+paso)});
     g.appendChild(t1); g.appendChild(t2);
 
-    const pct=(100*c.v/total).toFixed(1);
+    const pct=(100*c.v/total).toFixed(2);
     const extra=esInstitucion
       ? '<br>' + fmt(CUENTA_EMP.get(c.i)||0) + ' ' + ETQ.hijo + ' · clic para abrir'
       : '';
     g.addEventListener('mousemove',e=>verTip(e,
-      '<b>'+c.n+'</b><span class="n">'+fmt1(c.v)+'</span> MDP de 2020<br><span class="n">'+
+      '<b>'+c.n+'</b><span class="n">'+fmtM(c.v)+'</span> de 2020<br><span class="n">'+
       pct+'%</span> '+(esInstitucion?'del gasto federal':'de '+ETQ.de_esta)+extra));
     g.addEventListener('mouseleave',ocultarTip);
     if(esInstitucion){
@@ -365,7 +376,7 @@ function dibuja(cells,total,esInstitucion,desde){
         nd.t1.textContent = nd.c.n.length>lim ? nd.c.n.slice(0,lim-1)+'…' : nd.c.n;
         nd.t1.setAttribute('x',x+7); nd.t1.setAttribute('y',y+17);
         nd.t1.setAttribute('font-size',12);
-        nd.t2.textContent = fmt1(nd.c.v);
+        nd.t2.textContent = fmtM(nd.c.v, true);
         nd.t2.setAttribute('x',x+7); nd.t2.setAttribute('y',y+31);
         nd.t2.setAttribute('font-size',11);
       }
@@ -455,7 +466,7 @@ function pintaSug(){
   sugs=nivelInstituciones().filter(d=>NOM_PLEGADO[d.i].indexOf(q)>=0).slice(0,40);
   lista.innerHTML = sugs.length
     ? sugs.map((d,k)=>'<li role="option" data-k="'+k+'" aria-selected="'+(k===marcada)+'">'+
-        '<span>'+d.n+'</span><span class="mdp">'+fmt1(d.v)+' MDP</span></li>').join('')
+        '<span>'+d.n+'</span><span class="mdp">'+fmtM(d.v)+'</span></li>').join('')
     : '<li class="vacio">Sin resultados en '+(anioSel===''?'la serie':anioSel)+'</li>';
   lista.hidden=false;
   cajaQ.setAttribute('aria-expanded','true');

@@ -89,6 +89,79 @@ def canonizar(serie: pd.Series, campo: str, minusculas: bool = True) -> pd.Serie
     return salida.str.strip()
 
 
+# Sufijos de razón social: no distinguen empresas, solo estorban al comparar.
+_SUFIJOS = (r"(S\.?A\.?P\.?I\.?|S\.?A\.?B\.?|S\.?A\.?|S\.?C\.?|S\.?DE\.?R\.?L\.?|S\.?R\.?L\.?|"
+            r"S\.?N\.?C\.?|A\.?C\.?|S\.?AS\.?|DE\.?C\.?V\.?|C\.?V\.?|DE|SOFOM|ENR)")
+
+
+def clave_dura(nombre: object) -> str:
+    """Forma comparable de una razón social: sin acentos, sin puntuación, SIN ESPACIOS.
+
+    Quitar los espacios es lo que resuelve el ruido de captura de esta fuente, que
+    parte palabras a la mitad: «INFOR MACIÓN», «NAC IONAL», «TAB ASCO». Con espacios
+    esas variantes son cadenas distintas; sin ellos, la misma.
+    """
+    t = plegar(nombre).upper()
+    t = re.sub(r"[^A-Z0-9 ]", " ", t)
+    t = re.sub(r"\b" + _SUFIJOS + r"\b", " ", t)
+    return re.sub(r"\s+", "", t)
+
+
+def _componentes(pares: list[tuple[str, str]]) -> dict[str, str]:
+    """Union-find: agrupa lo que está conectado y devuelve {miembro: raíz}."""
+    padre: dict[str, str] = {}
+
+    def raiz(x: str) -> str:
+        padre.setdefault(x, x)
+        while padre[x] != x:
+            padre[x] = padre[padre[x]]
+            x = padre[x]
+        return x
+
+    for a, b in pares:
+        ra, rb = raiz(a), raiz(b)
+        if ra != rb:
+            padre[rb] = ra
+    return {x: raiz(x) for x in padre}
+
+
+def consolidar_beneficiarios(df: pd.DataFrame) -> pd.Series:
+    """Un nombre representativo por empresa, antes de aplicar las reglas editoriales.
+
+    Dos señales, ambas deterministas —nada de similitud aproximada, que produce
+    fusiones falsas difíciles de auditar:
+
+    1. **Clave dura**: dos escrituras que colapsan al quitar espacios y puntuación
+       son la misma empresa.
+    2. **RFC**: dos claves duras que comparten RFC son la misma empresa, aunque se
+       llamen distinto. Solo alcanza a 2012-2016 y 2024-2025, que es donde la fuente
+       publica el RFC.
+
+    El representante de cada grupo es el nombre crudo más frecuente: es el que la
+    fuente escribe bien más veces.
+    """
+    cd = df["beneficiario"].map(clave_dura)
+    rfc = df["rfc_beneficiario"]
+
+    pares = [(c, c) for c in cd.unique()]
+    con_rfc = df.loc[rfc.notna()]
+    if len(con_rfc):
+        por_rfc = pd.DataFrame({"cd": cd[rfc.notna()], "rfc": rfc[rfc.notna()]}).drop_duplicates()
+        for _, g in por_rfc.groupby("rfc")["cd"]:
+            claves = list(g)
+            pares += [(claves[0], k) for k in claves[1:]]
+
+    raiz = _componentes(pares)
+
+    frec = (df.assign(_cd=cd).groupby(["_cd", "beneficiario"], observed=True)
+            .size().rename("n").reset_index())
+    frec["_raiz"] = frec["_cd"].map(raiz)
+    repr_ = (frec.sort_values("n", ascending=False)
+             .groupby("_raiz")["beneficiario"].first())
+
+    return cd.map(raiz).map(repr_).fillna(df["beneficiario"])
+
+
 @lru_cache(maxsize=1)
 def catalogo_medios() -> pd.DataFrame:
     """`producto_clave` -> familia de medio y nombre limpio del producto.
@@ -105,7 +178,11 @@ def catalogo_medios() -> pd.DataFrame:
 def agregar_canonicos(df: pd.DataFrame) -> pd.DataFrame:
     """Agrega los nombres canónicos de beneficiario, institución y medio."""
     df = df.copy()
-    df["beneficiario_canonico"] = canonizar(df["beneficiario"], "beneficiario", minusculas=True)
+    # Primero se consolidan las razones sociales por clave dura y RFC; las reglas
+    # editoriales se aplican sobre el representante, no sobre cada variante.
+    df["beneficiario_consolidado"] = consolidar_beneficiarios(df)
+    df["beneficiario_canonico"] = canonizar(
+        df["beneficiario_consolidado"], "beneficiario", minusculas=True)
     df["institucion_canonica"] = canonizar(df["institucion"], "institucion", minusculas=False)
 
     cat = catalogo_medios()

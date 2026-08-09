@@ -739,6 +739,18 @@ const DATA = __DATOS__;
 const AUTOR = '__AUTOR__';
 const fmt  = n => n.toLocaleString('es-MX',{maximumFractionDigits:0});
 const fmt1 = n => n.toLocaleString('es-MX',{minimumFractionDigits:1,maximumFractionDigits:1});
+
+/* Los montos llegan en millones. Redondear a un decimal deja en "0.0" a 7,278 de
+   los 46,548 pares institución×empresa×año —el 15.6%—, que así parecen valer cero
+   cuando el menor de todos son 78 pesos. Por eso la unidad se adapta al tamaño en
+   vez de forzar millones. */
+function fmtM(v, compacto){
+  const a = Math.abs(v);
+  if(a >= 1)      return fmt1(v) + (compacto ? '' : ' MDP');
+  if(a >= 0.001)  return fmt(v*1e3) + (compacto ? ' mil' : ' mil pesos');
+  if(a > 0)       return fmt(v*1e6) + (compacto ? ' $' : ' pesos');
+  return compacto ? '0' : 'sin gasto';
+}
 const css  = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const S='http://www.w3.org/2000/svg';
 const el=(t,a={})=>{const e=document.createElementNS(S,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
@@ -874,13 +886,13 @@ function drawMap(svgId,bloque,etiqueta){
       const t1=el('text',{x:c.x+6,y:c.y+16,class:'cell-name',fill:ink});
       t1.textContent=nombre; g.appendChild(t1);
       if(h>30){ const t2=el('text',{x:c.x+6,y:c.y+29,class:'cell-val',fill:ink,opacity:.85});
-        t2.textContent=fmt1(c.v); g.appendChild(t2); }
+        t2.textContent=fmtM(c.v,true); g.appendChild(t2); }
     }
-    const pct=(100*c.v/d.total).toFixed(1);
+    const pct=(100*c.v/d.total).toFixed(2);
     const titulo=esGrupo?'Puestos '+c.n+' del ranking':c.n;
     const detalle=esGrupo?'<br>suma de '+fmt(c.grupo)+' '+etiqueta:'';
-    const info=e=>showTip(e,'<b>'+titulo+'</b><span class="n">'+fmt1(c.v)+
-      '</span> MDP de 2020<br><span class="n">'+pct+'%</span> del gasto de '+anioSel+detalle);
+    const info=e=>showTip(e,'<b>'+titulo+'</b><span class="n">'+fmtM(c.v)+
+      '</span> de 2020<br><span class="n">'+pct+'%</span> del gasto de '+anioSel+detalle);
     g.addEventListener('mousemove',info);
     g.addEventListener('mouseleave',hideTip);
     svg.appendChild(g);
@@ -1085,11 +1097,11 @@ function pintaCamp(){
       t1.textContent = c.n.length>lim ? c.n.slice(0,lim-1)+'…' : c.n;
       g.appendChild(t1);
       if(h>30){ const t2=el('text',{x:c.x+6,y:c.y+29,class:'cell-val',fill:ink,opacity:.85});
-        t2.textContent=fmt1(c.v); g.appendChild(t2); }
+        t2.textContent=fmtM(c.v,true); g.appendChild(t2); }
     }
-    const pct=(100*c.v/d.total).toFixed(1);
-    g.addEventListener('mousemove',e=>showTip(e,'<b>'+c.n+'</b><span class="n">'+fmt1(c.v)+
-      '</span> MDP de 2020<br><span class="n">'+pct+'%</span> de las campañas de '+an));
+    const pct=(100*c.v/d.total).toFixed(2);
+    g.addEventListener('mousemove',e=>showTip(e,'<b>'+c.n+'</b><span class="n">'+fmtM(c.v)+
+      '</span> de 2020<br><span class="n">'+pct+'%</span> de las campañas de '+an));
     g.addEventListener('mouseleave',hideTip);
     svg.appendChild(g);
   });
@@ -1136,7 +1148,7 @@ function pintaConc(){
       '<span class="pista"><i style="width:'+f[met].toFixed(1)+'%;background:var(--r'+paso+')"></i></span>'+
       '<span class="num fuerte der">'+f[met].toFixed(1)+'</span>'+
       '<span class="num der">'+fmt(f[2])+'</span>'+
-      '<span class="num der mdp">'+fmt1(f[1])+'</span></div>';
+      '<span class="num der mdp">'+fmtM(f[1],true)+'</span></div>';
   }).join('');
 }
 
@@ -1218,8 +1230,8 @@ function pintar(){
     tb += '<tr><td>'+f[0]+'</td><td><span class="pill '+(f[1]?'emp':'inst')+'" title="'+
       (f[1]?'Monto recibido por la empresa':'Monto erogado por la institución')+'">'+
       (f[1]?'Empresa':'Instit.')+'</span></td><td>'+T.nombres[f[2]]+'</td><td>'+
-      fmt1(f[3])+'</td><td>'+pct.toFixed(2)+'%</td><td>'+fmt1(f[4])+'</td><td>'+
-      fmt(f[5])+'</td><td>'+fmt(f[6])+'</td><td>'+(f[7]?fmt1(f[7]):'—')+'</td></tr>';
+      fmtM(f[3],true)+'</td><td>'+pct.toFixed(2)+'%</td><td>'+fmtM(f[4],true)+'</td><td>'+
+      fmt(f[5])+'</td><td>'+fmt(f[6])+'</td><td>'+(f[7]?fmtM(f[7],true):'—')+'</td></tr>';
   }
   document.getElementById('tblBusca').innerHTML = n
     ? '<thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody>'
