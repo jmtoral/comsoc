@@ -446,7 +446,44 @@ implementación correcta es generar los candidatos, revisarlos a mano y guardar 
 aprobadas en un CSV auditable** — no aplicar un umbral. El script de exploración quedó en
 `legacy/diagnostico/fuzzy_demo.py`.
 
-### 3.18 Entorno: conda local
+### 3.18 Ciclo electoral — y por qué NO hay análisis mensual
+
+**El hallazgo:** los cuatro años electorales comparables están por encima del promedio de sus
+vecinos, y las presidenciales pesan el triple que las intermedias.
+
+| año | vs. vecinos | |
+|---|---:|---|
+| 2015 | +11.0% | intermedia |
+| 2018 | **+29.3%** | presidencial |
+| 2021 | +1.4% | intermedia |
+| 2024 | +7.1% | presidencial |
+| **promedio electoral** | **+12.2%** | |
+| promedio sin elección | −12.3% | (n=8) |
+
+Presidenciales **+18.2%**, intermedias **+6.2%**. Brecha total: 24.5 puntos.
+
+Se compara contra el **promedio de los dos años vecinos** y no contra el año anterior: el nivel
+cayó 67% en 2019, así que una variación interanual mezcla el ciclo con el cambio de régimen. Con
+vecinos, el desplazamiento se cancela. 2012 y 2025 quedan fuera por no tener los dos vecinos.
+
+#### La resolución mensual es imposible con estos datos
+
+Se probaron los tres campos de fecha y ninguno aguanta:
+
+| campo | por qué no sirve |
+|---|---|
+| `mes` | **No es cuándo se anunció, es el periodo contable.** Concentra 51.6% de todo el gasto en diciembre, y hay renglones con `mes = 12` cuya `fecha_gasto` cae en enero —incluso de enero del año siguiente. |
+| `fecha_gasto` | Es la fecha de pago, que va detrás de la campaña. Aun así deja 28.8% en diciembre. |
+| `fecha_contrato` | Salta de **56.8%** del gasto en abril–junio (2024) a **1.3%** (2025). |
+
+La prueba de que `mes` refleja la compilación del archivo y no comportamiento: su concentración
+en diciembre va de **14.9% en 2012 a 83.8% en 2019**. Y los dos campos discrepan en 34.7% de las
+filas, 43,450 MDP.
+
+*Si alguien pide «gasto por mes» o «gasto antes de la veda», la respuesta es que la fuente no lo
+permite. Está dicho en el reporte, no escondido en el código.*
+
+### 3.19 Entorno: conda local
 
 Se descartó Colab. Todo corre en local sobre **`pnt_analysis`**, environment **reutilizado** de
 otro proyecto del mismo dominio: Python 3.12.3, pandas 2.2.2, pyarrow 16.1, plotnine 0.13.6,
@@ -455,7 +492,7 @@ networkx, scipy, matplotlib, ipykernel. Se le agregaron `openpyxl`, `pyyaml` y `
 Intérprete: `C:\Users\User\anaconda3\envs\pnt_analysis\python.exe`. `conda` no está en el PATH.
 Correr siempre con `-X utf8`.
 
-### 3.19 Código
+### 3.20 Código
 
 `src/comsoc/`: `config`, `layouts`, `schema`, `ingest`, `clean`, `entities`, `ids`, `deflate`,
 `validate`, `export`, `reporte`, `zoom`, `build`.
@@ -506,7 +543,7 @@ Todo lo viejo se **movió, nada se borró**: el proyecto en R está íntegro en 
 
 | # | Pendiente | Nota |
 |---|---|---|
-| 1 | **Fase 6 — análisis** | Parcialmente hecho: el reporte ya cubre serie, medios en el tiempo, campañas y concentración. Faltan el ciclo electoral, la red institución↔beneficiario y las anomalías de precio. Las 7 preguntas están en el skill `comsoc-analisis`. |
+| 1 | **Fase 6 — análisis** | Hecho: serie, medios en el tiempo, campañas, concentración, ganadores/perdedores y **ciclo electoral**. Faltan la **red institución↔beneficiario** (proveedores cautivos) y las **anomalías de precio** (mismo producto y mes con costo unitario dispar, más Benford). Ver el skill `comsoc-analisis`. |
 | 2 | **Verificar 2 RFC de Imagen** | `CSI0508264PA0` y `ISI050826EQ50`. Cinco minutos de consulta deciden 1,401 MDP y si la cifra de Imagen está inflada 39%. |
 | 3 | **Fase 5 — hojas `Ejercido`** | Declaradas en `layouts.yaml`, sin lector. Falta tabla puente institución↔clave (no traen clave, ~120 por año). Permitiría cruzar presupuesto autorizado contra pagado. |
 | 4 | **Cola larga de beneficiarios** | Catálogo `RFC → canónico` con 2012–2016 + 2024–2025, y `rapidfuzz` para el hueco 2017–2023. Hoy 4,955 nombres crudos → 4,719 canónicos: las reglas apenas tocan 236. |

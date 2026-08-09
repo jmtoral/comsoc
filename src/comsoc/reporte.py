@@ -177,6 +177,22 @@ def construir_datos(df: pd.DataFrame) -> dict:
               "serie": {f: [round(float(fam.get((f, a), 0.0)), 1) for a in anios_serie]
                         for f in orden_fam}}
 
+    # Ciclo electoral. Se compara cada año contra el PROMEDIO DE SUS VECINOS y no
+    # contra el anterior: el nivel se desplomó 67% en 2019, así que una variación
+    # interanual mezcla el ciclo con el cambio de régimen. El promedio de los dos
+    # años contiguos controla ese desplazamiento.
+    ELECCIONES = {2012: "presidencial", 2015: "intermedia", 2018: "presidencial",
+                  2021: "intermedia", 2024: "presidencial"}
+    real = {int(y): float(v) for y, v in (a.real / 1e6).items()}
+    ciclo = []
+    for y in anios_serie:
+        prev, sig = real.get(y - 1), real.get(y + 1)
+        vs = None
+        if prev is not None and sig is not None:
+            vs = round(100 * (real[y] / ((prev + sig) / 2) - 1), 1)
+        ciclo.append({"anio": y, "mdp": round(real[y], 1), "vs": vs,
+                      "tipo": ELECCIONES.get(y, "")})
+
     # Ganadores y perdedores. Se compara SEXENIO contra SEXENIO y no año contra año:
     # el cambio interanual mediano de participación es 0.021 pp, o sea que un ranking
     # anual mide sobre todo ruido. Y se compara PARTICIPACIÓN porque el gasto real
@@ -230,6 +246,7 @@ def construir_datos(df: pd.DataFrame) -> dict:
             "medios": medios,
             "campanas": campanas,
             "ganperd": ganperd,
+            "ciclo": ciclo,
             "meta": {"renglones": int(len(b)), "columnas": int(len(df.columns)),
                      "polizas": int(b.poliza_id.nunique()),
                      "total_real": round(float(b.monto_real.sum() / 1e6), 1)}}
@@ -463,6 +480,18 @@ td:first-child{font-family:var(--font-body);color:var(--ink)}
   letter-spacing:.09em;color:var(--accent-deep);font-weight:700;padding-top:16px;
   border-bottom:1px solid var(--line-2)}
 
+/* ── ciclo electoral ── */
+.eje-cero{stroke:var(--ink-3);stroke-width:1.2}
+.barra-ciclo{cursor:default}
+.voto{fill:var(--accent-deep);font-family:var(--font-display);font-size:10.5px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.06em;text-anchor:middle}
+.resumen-ciclo{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;
+  margin-top:18px}
+.rc{background:var(--surface-2);border:1px solid var(--line-2);border-radius:12px;padding:14px 16px}
+.rc b{display:block;font-family:var(--font-display);font-size:26px;line-height:1;
+  color:var(--accent-deep);font-variant-numeric:tabular-nums;margin-bottom:5px}
+.rc span{font-size:12.5px;color:var(--ink-2);line-height:1.4}
+
 /* ── ganadores y perdedores ── */
 .gp-cab,.gp-fila{display:grid;
   grid-template-columns:minmax(130px,1.5fr) minmax(150px,2fr) 66px 92px 96px;
@@ -588,6 +617,30 @@ CUERPO = """
       </details>
     </div>
 
+  </section>
+
+  <section>
+    <h2>&iquest;Se gasta m&aacute;s en a&ntilde;o electoral?</h2>
+    <p class="sub">Cada a&ntilde;o comparado contra el <b>promedio de sus dos vecinos</b>.
+      As&iacute; se ve el ciclo sin que lo tape el desplome de 2019.</p>
+    <div class="card">
+      <div class="chart-scroll">
+        <svg id="cCiclo" viewBox="0 0 1000 300" role="img"
+             aria-label="Gasto de cada a&ntilde;o comparado con el promedio de sus vecinos"></svg>
+      </div>
+      <p class="nota-pie" id="cNota"></p>
+      <div class="resumen-ciclo" id="cResumen"></div>
+    </div>
+    <p class="aviso">
+      <b>No hay an&aacute;lisis por mes, y no por descuido.</b> Ninguno de los tres campos de
+      fecha aguanta esa resoluci&oacute;n. El campo <code>mes</code> no dice cu&aacute;ndo se
+      anunci&oacute; sino en qu&eacute; periodo se registr&oacute; el gasto: concentra 51.6% de
+      todo en diciembre, y hay renglones con <code>mes = 12</code> cuya fecha cae en enero
+      &mdash;incluso de enero del a&ntilde;o siguiente&mdash;. La proporci&oacute;n de diciembre
+      salta de 14.9% a 83.8% seg&uacute;n el a&ntilde;o, o sea que refleja c&oacute;mo se
+      compil&oacute; cada archivo. La fecha de contrato tampoco: pasa de 56.8% del gasto en
+      abril&ndash;junio en 2024 a 1.3% en 2025. <b>Por eso la comparaci&oacute;n es anual.</b>
+    </p>
   </section>
 
   <section>
@@ -1052,6 +1105,61 @@ function selAnio(a){
   document.getElementById('tblSerie').innerHTML=
     '<thead><tr><th>Año</th><th>MDP 2020</th><th>MDP nominales</th><th>Pólizas</th>'+
     '<th>Renglones</th><th style="text-align:left">Sexenio</th></tr></thead><tbody>'+rows+'</tbody>';
+})();
+
+/* ── ciclo electoral ─────────────────────────────────────────────────── */
+(function(){
+  const C = DATA.ciclo.filter(d=>d.vs !== null);
+  const W=1000,H=300,ML=54,MR=16,MT=34,MB=44;
+  const svg=document.getElementById('cCiclo');
+  const max=Math.max(...C.map(d=>Math.abs(d.vs)))*1.15;
+  const bw=(W-ML-MR)/C.length;
+  const y=v=>MT+(H-MT-MB)*(1-(v+max)/(2*max));
+
+  for(let k=-1;k<=1;k+=0.5){
+    const v=max*k, yy=y(v);
+    svg.appendChild(el('line',{x1:ML,x2:W-MR,y1:yy,y2:yy,
+      class: k===0 ? 'eje-cero' : 'grid-line'}));
+    const t=el('text',{x:ML-9,y:yy+4,class:'axis-txt','text-anchor':'end'});
+    t.textContent=(v>0?'+':'')+v.toFixed(0)+'%'; svg.appendChild(t);
+  }
+
+  C.forEach((d,i)=>{
+    const x0=ML+i*bw, yy0=y(Math.max(d.vs,0)), h=Math.abs(y(d.vs)-y(0));
+    const esElec=!!d.tipo;
+    const r=el('rect',{x:x0+4,y:yy0,width:bw-8,height:Math.max(h,1),rx:3,
+      class:'barra-ciclo',
+      fill: esElec ? 'var(--accent)' : (d.vs>=0 ? 'var(--r1)' : 'var(--otros)')});
+    r.addEventListener('mousemove',e=>showTip(e,'<b>'+d.anio+
+      (esElec?' · elección '+d.tipo:'')+'</b>'+
+      '<span class="n">'+(d.vs>0?'+':'')+d.vs.toFixed(1)+'%</span> contra el promedio de '+
+      (d.anio-1)+' y '+(d.anio+1)+'<br><span class="n">'+fmt1(d.mdp)+'</span> MDP de 2020'));
+    r.addEventListener('mouseleave',hideTip);
+    svg.appendChild(r);
+    if(esElec){
+      const v=el('text',{x:x0+bw/2,y:MT-16,class:'voto'});
+      v.textContent = d.tipo==='presidencial' ? 'PRESIDENCIAL' : 'INTERMEDIA';
+      v.setAttribute('font-size', d.tipo==='presidencial' ? 9 : 10);
+      svg.appendChild(v);
+    }
+    const a=el('text',{x:x0+bw/2,y:H-MB+20,class:'axis-yr','text-anchor':'middle'});
+    a.textContent="'"+String(d.anio).slice(2); svg.appendChild(a);
+  });
+  credito(svg,W-MR,H-6,'end');
+
+  const el_=C.filter(d=>d.tipo), no=C.filter(d=>!d.tipo);
+  const prom=a=>a.reduce((s,d)=>s+d.vs,0)/a.length;
+  const pres=C.filter(d=>d.tipo==='presidencial'), inter=C.filter(d=>d.tipo==='intermedia');
+  document.getElementById('cNota').textContent =
+    'Los '+el_.length+' años electorales del periodo están por encima de sus vecinos. '+
+    'Sin años vecinos completos, '+DATA.ciclo[0].anio+' y '+
+    DATA.ciclo[DATA.ciclo.length-1].anio+' no se pueden comparar.';
+  document.getElementById('cResumen').innerHTML = [
+    ['+'+prom(el_).toFixed(1)+'%','Promedio de los años <b>electorales</b> contra sus vecinos'],
+    [prom(no).toFixed(1)+'%','Promedio de los años <b>sin elección</b>'],
+    ['+'+prom(pres).toFixed(1)+'%','Solo <b>presidenciales</b> ('+pres.map(d=>d.anio).join(' y ')+')'],
+    ['+'+prom(inter).toFixed(1)+'%','Solo <b>intermedias</b> ('+inter.map(d=>d.anio).join(' y ')+')'],
+  ].map(([k,v])=>'<div class="rc"><b>'+k+'</b><span>'+v+'</span></div>').join('');
 })();
 
 /* ── medios en el tiempo: nueve líneas en el mismo plano ─────────────── */
