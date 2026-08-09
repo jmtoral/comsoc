@@ -899,6 +899,15 @@ CUERPO = """
 GUION = r"""
 const DATA = __DATOS__;
 const AUTOR = '__AUTOR__';
+/* Alias de los bloques de datos, TODOS aquí arriba. `const` no se puede leer antes
+   de su línea, así que declararlos junto a la sección que los estrena hace que
+   agregar una sección nueva más arriba rompa la página entera en silencio: eso ya
+   pasó dos veces con `T`. */
+const T = DATA.tabla;
+const CONC = DATA.conc;
+const MED = DATA.medios;
+const CAMP = DATA.campanas;
+const GP = DATA.ganperd;
 const fmt  = n => n.toLocaleString('es-MX',{maximumFractionDigits:0});
 const fmt1 = n => n.toLocaleString('es-MX',{minimumFractionDigits:1,maximumFractionDigits:1});
 
@@ -1175,7 +1184,7 @@ function selAnio(a){
    #F62477 / #2E9E8B cae a 5.3 de ΔE bajo daltonismo, bajo el piso de 6. Así que el
    color NO carga la identidad: la cargan las etiquetas al final de cada línea, y
    el color solo marca cuál estás señalando. */
-const MED = DATA.medios, ANIOS = serie.map(d=>d.anio);
+const ANIOS = serie.map(d=>d.anio);
 const LW=1000, LH=430, LML=56, LMR=196, LMT=16, LMB=42;
 let mDatos=[], mEsc=null;
 
@@ -1299,7 +1308,6 @@ document.getElementById('mMedida').addEventListener('change',pintaMedios);
 pintaMedios();
 
 /* ── treemap de campañas ────────────────────────────────────────────── */
-const CAMP = DATA.campanas;
 const aniosCamp = Object.keys(CAMP).sort();
 function pintaCamp(){
   const an = document.getElementById('kAnio').value;
@@ -1341,7 +1349,6 @@ function pintaCamp(){
 
 /* ── ganadores y perdedores ─────────────────────────────────────────── */
 /* Fila: [idxNombre, shEPN, shAMLO, mdpEPN, mdpAMLO] */
-const GP = DATA.ganperd;
 
 function pintaGP(){
   const vista = document.getElementById('gVista').value;
@@ -1398,12 +1405,7 @@ document.getElementById('gVista').addEventListener('change',pintaGP);
 pintaGP();
 
 /* ── concentración de proveedores ───────────────────────────────────── */
-/* El diccionario de nombres se comparte con el buscador, así que se declara aquí,
-   antes del primer uso: `const` no se puede leer antes de su línea. */
-const T = DATA.tabla;
-/* Fila: [idxNombre, totalMDP, nProveedores, cr1, cr3, cr5, hhi] */
-const CONC = DATA.conc;
-
+/* Fila de CONC: [idxNombre, totalMDP, nProveedores, cr1, cr3, cr5, hhi] */
 function pintaConc(){
   const met = +document.getElementById('cMetrica').value;
   const umb = +document.getElementById('cUmbral').value;
