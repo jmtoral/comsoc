@@ -40,14 +40,22 @@ from .config import DOCS_DIR, POLIZAS_PARQUET, asegurar_directorios
 # justamente lo que interesa ver. La de instituciones es corta (2%–10%), así que
 # le basta un corte.
 def _mdp(x: float) -> float:
-    """Millones de pesos con precisión de UN PESO.
+    """Millones de pesos, con la precisión que corresponde a la magnitud.
 
-    Redondear a 1 o 2 decimales convertía en 0 todo lo menor a 5,000 pesos ANTES de
-    llegar al navegador: el formateo de la página no puede recuperar lo que ya se
-    perdió aquí. Seis decimales cuestan unos 70 KB y salvan 7,278 registros que se
-    veían como «0».
+    Redondear todo a 1 o 2 decimales convertía en 0 lo menor a 5,000 pesos ANTES de
+    llegar al navegador, y el formateo de la página no puede recuperar lo que ya se
+    perdió aquí. Pero seis decimales para todo es igual de absurdo al revés: guardar
+    12,734.700000 pesa el doble y no aporta nada sobre 12,734.7.
+
+    Se conservan siempre ~5 cifras significativas.
     """
-    return round(float(x) / 1e6, 6)
+    v = float(x) / 1e6
+    a = abs(v)
+    if a >= 100:
+        return round(v, 1)
+    if a >= 1:
+        return round(v, 3)
+    return round(v, 6)
 
 
 PANELES = {

@@ -22,6 +22,7 @@ import argparse
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from .config import DOCS_DIR, POLIZAS_PARQUET, asegurar_directorios
@@ -81,9 +82,13 @@ def construir_datos(df: pd.DataFrame, vista: dict) -> dict:
     # engorda el archivo. Se redondea ANTES de filtrar: al revés, los montos menores
     # a 5 mil pesos quedan en 0.00 y meten celdas de área cero, que hacen dividir
     # entre cero al squarify.
-    # Seis decimales = precisión de un peso. Con dos, todo lo menor a 5,000 pesos
-    # llegaba al navegador convertido en 0 y las cajas decían «0.0».
-    par = par.assign(mdp=(par.monto_real / 1e6).round(6))
+    # Precisión proporcional a la magnitud: con dos decimales para todo, lo menor a
+    # 5,000 pesos llegaba convertido en 0 y las cajas decían «0.0»; con seis para
+    # todo, «12,734.700000» pesa el doble sin aportar nada. Siempre ~5 cifras
+    # significativas.
+    mdp = par.monto_real / 1e6
+    par = par.assign(mdp=np.where(mdp.abs() >= 100, mdp.round(1),
+                                  np.where(mdp.abs() >= 1, mdp.round(3), mdp.round(6))))
     descartados = int((par.mdp <= 0).sum())
     par = par[par.mdp > 0]
 
