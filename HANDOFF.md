@@ -221,7 +221,7 @@ Contiene, en orden:
   en tramos de posición marcados con trama diagonal. Sin partir, ese "Otros" valía **21%–39%**
   del año en empresas; ahora el bloque mayor es 19.7%.
 - **Portadas** de las dos vistas de pantalla completa, con miniatura del treemap.
-- **Medios en el tiempo**: nueve pequeños múltiplos con escala compartida (§3.13).
+- **Medios en el tiempo**: nueve líneas en un plano, con crosshair (§3.13 y §3.15).
 - **Campañas**: treemap por año, rampa verde azulada. Solo 2024–2025, y se dice por qué.
 - **Concentración de proveedores**: barras ordenadas de la institución más concentrada a la
   menos, con selector de medida (1, 3 o 5 proveedores mayores), umbral y año.
@@ -245,10 +245,14 @@ se usan solo como fondo y realce. Tema único claro sobre crema `#FBF5E6`, delib
 `python -m comsoc.zoom` genera **dos** páginas independientes del reporte, desde el mismo código
 parametrizado por el diccionario `VISTAS`:
 
-| página | nivel 0 → nivel 1 | peso |
-|---|---|---:|
-| `quien-paga-a-quien.html` | institución → empresas | 1,145 KB |
-| `medios.html` | familia de medio → producto | 28 KB |
+| página | nivel 0 → nivel 1 | peso | gzip |
+|---|---|---:|---:|
+| `quien-paga-a-quien.html` | institución → empresas | 1,145 KB | 269 KB |
+| `medios.html` | **medio de comunicación** → producto | 575 KB | 155 KB |
+
+En `medios.html` cada caja del nivel 0 es una **empresa** —Televisa 14,958 MDP, TV Azteca 12,171,
+La Jornada 2,110— y al abrirla se ve qué le vendió al gobierno. Ahí salta un contraste de modelo
+de negocio: **TV Azteca vendió 27 productos distintos y Televisa solo 11**, con más dinero.
 
 Cada caja se abre al darle clic y los hijos **crecen desde esa misma caja** hasta llenar el lienzo.
 
@@ -354,12 +358,26 @@ Todas pasan el criterio ordinal (ΔL ≥ 0.06, paso más claro ≥ 2.0 de contra
 crema). El ámbar se eligió sobre ciruela y verde azulado por ser la más separable del rosa
 (ΔE 14.9 normal, 5.5 bajo daltonismo, contra 9.7 de la ciruela).
 
-⚠ **Nueve familias de medios no caben como nueve colores categóricos**: el límite práctico son
-ocho y ninguna paleta de nueve tonos sobrevive al daltonismo. Por eso ese análisis va como
-**pequeños múltiplos** —un panel por familia, un solo acento, escala compartida— y no como barras
-apiladas.
+### 3.15 Nueve series no llevan nueve colores
 
-### 3.15 Entorno: conda local
+La gráfica de medios en el tiempo son **nueve líneas en un mismo plano**, y ninguna tiene color
+propio. No es pereza: se probó una paleta categórica de nueve y falla medido.
+
+| par | ΔE normal | ΔE daltonismo | piso |
+|---|---:|---:|---|
+| `#F62477 / #2E9E8B` | 34.2 | **5.3** | 6.0 |
+| `#92003A / #7A4A02` | 14.9 | **6.0** | 6.0 |
+| `#7A4A02 / #8A6A1F` | **9.3** | 8.7 | 15.0 |
+
+Solución: las líneas van en un tono neutro, **la identidad la dan las etiquetas al final** de cada
+línea —con su valor, y separadas con un empuje mínimo de 15 px para que no se encimen— y el acento
+solo marca la línea que el cursor está señalando. El crosshair muestra los nueve valores del año
+ordenados de mayor a menor.
+
+*Si alguien quiere «arreglarlo» poniendo nueve colores: ya se midió, no se puede. Con ocho series
+o menos sí; con nueve, la identidad tiene que venir de otro canal.*
+
+### 3.16 Entorno: conda local
 
 Se descartó Colab. Todo corre en local sobre **`pnt_analysis`**, environment **reutilizado** de
 otro proyecto del mismo dominio: Python 3.12.3, pandas 2.2.2, pyarrow 16.1, plotnine 0.13.6,
@@ -368,7 +386,7 @@ networkx, scipy, matplotlib, ipykernel. Se le agregaron `openpyxl`, `pyyaml` y `
 Intérprete: `C:\Users\User\anaconda3\envs\pnt_analysis\python.exe`. `conda` no está en el PATH.
 Correr siempre con `-X utf8`.
 
-### 3.16 Código
+### 3.17 Código
 
 `src/comsoc/`: `config`, `layouts`, `schema`, `ingest`, `clean`, `entities`, `ids`, `deflate`,
 `validate`, `export`, `reporte`, `zoom`, `build`.
