@@ -81,7 +81,9 @@ def construir_datos(df: pd.DataFrame, vista: dict) -> dict:
     # engorda el archivo. Se redondea ANTES de filtrar: al revés, los montos menores
     # a 5 mil pesos quedan en 0.00 y meten celdas de área cero, que hacen dividir
     # entre cero al squarify.
-    par = par.assign(mdp=(par.monto_real / 1e6).round(2))
+    # Seis decimales = precisión de un peso. Con dos, todo lo menor a 5,000 pesos
+    # llegaba al navegador convertido en 0 y las cajas decían «0.0».
+    par = par.assign(mdp=(par.monto_real / 1e6).round(6))
     descartados = int((par.mdp <= 0).sum())
     par = par[par.mdp > 0]
 
@@ -245,7 +247,12 @@ function fmtM(v, compacto){
   if(a >= 1)      return fmt1(v) + (compacto ? '' : ' MDP');
   if(a >= 0.001)  return fmt(v*1e3) + (compacto ? ' mil' : ' mil pesos');
   if(a > 0)       return fmt(v*1e6) + (compacto ? ' $' : ' pesos');
-  return compacto ? '0' : 'sin gasto';
+  return compacto ? '—' : 'sin gasto';
+}
+function fmtPct(p){
+  if(p === 0)   return '—';
+  if(p < 0.01)  return '<0.01%';
+  return p.toFixed(2) + '%';
 }
 const css  = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const S='http://www.w3.org/2000/svg';
@@ -336,13 +343,13 @@ function dibuja(cells,total,esInstitucion,desde){
     const t2=el('text',{class:'val',fill:css('--on-'+fam+paso)});
     g.appendChild(t1); g.appendChild(t2);
 
-    const pct=(100*c.v/total).toFixed(2);
+    const pct=fmtPct(100*c.v/total);
     const extra=esInstitucion
       ? '<br>' + fmt(CUENTA_EMP.get(c.i)||0) + ' ' + ETQ.hijo + ' · clic para abrir'
       : '';
     g.addEventListener('mousemove',e=>verTip(e,
       '<b>'+c.n+'</b><span class="n">'+fmtM(c.v)+'</span> de 2020<br><span class="n">'+
-      pct+'%</span> '+(esInstitucion?'del gasto federal':'de '+ETQ.de_esta)+extra));
+      pct+'</span> '+(esInstitucion?'del gasto federal':'de '+ETQ.de_esta)+extra));
     g.addEventListener('mouseleave',ocultarTip);
     if(esInstitucion){
       g.setAttribute('tabindex','0');

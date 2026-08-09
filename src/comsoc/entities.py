@@ -89,22 +89,33 @@ def canonizar(serie: pd.Series, campo: str, minusculas: bool = True) -> pd.Serie
     return salida.str.strip()
 
 
-# Sufijos de razón social: no distinguen empresas, solo estorban al comparar.
-_SUFIJOS = (r"(S\.?A\.?P\.?I\.?|S\.?A\.?B\.?|S\.?A\.?|S\.?C\.?|S\.?DE\.?R\.?L\.?|S\.?R\.?L\.?|"
-            r"S\.?N\.?C\.?|A\.?C\.?|S\.?AS\.?|DE\.?C\.?V\.?|C\.?V\.?|DE|SOFOM|ENR)")
+# Formas societarias al FINAL del nombre. Solo las inequívocas: quitar un «SA»
+# suelto mutilaría «PRENSA», y el riesgo no compensa.
+_SUFIJOS_FIN = re.compile(
+    r"(SAPIDECVSOFOMENR|SAPIDECV|SABDECV|SADECV|SDERLDECV|SCDERLDECV|SRLDECV|SASDECV|"
+    r"SENCDECV|SAPI|SAB|SNC|SAS|SOFOMENR)$")
 
 
 def clave_dura(nombre: object) -> str:
     """Forma comparable de una razón social: sin acentos, sin puntuación, SIN ESPACIOS.
 
-    Quitar los espacios es lo que resuelve el ruido de captura de esta fuente, que
-    parte palabras a la mitad: «INFOR MACIÓN», «NAC IONAL», «TAB ASCO». Con espacios
-    esas variantes son cadenas distintas; sin ellos, la misma.
+    Quitar los espacios resuelve el ruido característico de esta fuente, que parte
+    palabras a la mitad: «INFOR MACIÓN», «NAC IONAL», «TAB ASCO». Con espacios esas
+    variantes son cadenas distintas; sin ellos, la misma.
+
+    El orden importa. Antes se sustituía la puntuación por espacios y LUEGO se
+    quitaban los sufijos, así que «S.C.» quedaba en «S C» y no coincidía con «SC»:
+    AGAVIS Digital aparecía partida en dos por 267 MDP. Ahora se compacta primero y
+    los sufijos se recortan del final ya compactados.
     """
     t = plegar(nombre).upper()
-    t = re.sub(r"[^A-Z0-9 ]", " ", t)
-    t = re.sub(r"\b" + _SUFIJOS + r"\b", " ", t)
-    return re.sub(r"\s+", "", t)
+    t = re.sub(r"[^A-Z0-9]", "", t)
+    for _ in range(3):                      # «... SA DE CV SOFOM ENR» encadena varios
+        t2 = _SUFIJOS_FIN.sub("", t)
+        if t2 == t or len(t2) < 5:
+            break
+        t = t2
+    return t
 
 
 def _componentes(pares: list[tuple[str, str]]) -> dict[str, str]:

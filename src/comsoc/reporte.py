@@ -39,6 +39,17 @@ from .config import DOCS_DIR, POLIZAS_PARQUET, asegurar_directorios
 # del año, hasta 449 empresas en 2025— y un cuadro de ese tamaño esconde
 # justamente lo que interesa ver. La de instituciones es corta (2%–10%), así que
 # le basta un corte.
+def _mdp(x: float) -> float:
+    """Millones de pesos con precisión de UN PESO.
+
+    Redondear a 1 o 2 decimales convertía en 0 todo lo menor a 5,000 pesos ANTES de
+    llegar al navegador: el formateo de la página no puede recuperar lo que ya se
+    perdió aquí. Seis decimales cuestan unos 70 KB y salvan 7,278 registros que se
+    veían como «0».
+    """
+    return round(float(x) / 1e6, 6)
+
+
 PANELES = {
     "instituciones": {"campo": "institucion_canonica", "top": 30, "cortes": [60]},
     "beneficiarios": {"campo": "beneficiario_canonico", "top": 30, "cortes": [75, 150, 300]},
@@ -81,7 +92,7 @@ def construir_datos(df: pd.DataFrame) -> dict:
         for anio, g in b.groupby("anio_fuente"):
             s = (g.groupby(campo)["monto_real"].sum() / 1e6).sort_values(ascending=False)
             s = s[s > 0]
-            items = [{"n": str(k), "v": round(float(v), 1)} for k, v in s.head(top).items()]
+            items = [{"n": str(k), "v": _mdp(v * 1e6)} for k, v in s.head(top).items()]
 
             # La cola se parte en tramos de posición en vez de un solo "Otros".
             for ini, fin in zip([top] + cortes, cortes + [len(s)]):
@@ -90,11 +101,11 @@ def construir_datos(df: pd.DataFrame) -> dict:
                     continue
                 items.append({
                     "n": f"{ini + 1}–{min(fin, len(s))}",
-                    "v": round(float(tramo.sum()), 1),
+                    "v": _mdp(tramo.sum() * 1e6),
                     "grupo": int(len(tramo)),
                 })
 
-            out[str(int(anio))] = {"items": items, "total": round(float(s.sum()), 1),
+            out[str(int(anio))] = {"items": items, "total": _mdp(s.sum() * 1e6),
                                    "n_total": int(len(s))}
         return out
 
@@ -122,9 +133,8 @@ def construir_datos(df: pd.DataFrame) -> dict:
         g = g.merge(op, on=["anio_fuente", campo], how="left").fillna({"op": 0.0})
         for r in g.itertuples(index=False):
             nombres.add(r[1])
-            filas.append((int(r.anio_fuente), tipo, r[1], round(r.real / 1e6, 2),
-                          round(r.nominal / 1e6, 2), int(r.pol), int(r.ren),
-                          round(r.op / 1e6, 2)))
+            filas.append((int(r.anio_fuente), tipo, r[1], _mdp(r.real),
+                          _mdp(r.nominal), int(r.pol), int(r.ren), _mdp(r.op)))
     nom = sorted(nombres)
     ind = {n: i for i, n in enumerate(nom)}
 
@@ -152,7 +162,7 @@ def construir_datos(df: pd.DataFrame) -> dict:
             if total <= 0:
                 continue
             sh = v / total
-            filas_c.append([ind[institucion], round(total / 1e6, 2), int(len(v)),
+            filas_c.append([ind[institucion], _mdp(total), int(len(v)),
                             round(100 * float(sh[0]), 1),
                             round(100 * float(sh[:3].sum()), 1),
                             round(100 * float(sh[:5].sum()), 1),
@@ -167,6 +177,41 @@ def construir_datos(df: pd.DataFrame) -> dict:
               "serie": {f: [round(float(fam.get((f, a), 0.0)), 1) for a in anios_serie]
                         for f in orden_fam}}
 
+    # Ganadores y perdedores. Se compara SEXENIO contra SEXENIO y no año contra año:
+    # el cambio interanual mediano de participación es 0.021 pp, o sea que un ranking
+    # anual mide sobre todo ruido. Y se compara PARTICIPACIÓN porque el gasto real
+    # cayó 67% en 2019: en montos absolutos perdieron todos.
+    EPN = [a for a in anios_serie if 2013 <= a <= 2018]
+    AMLO = [a for a in anios_serie if 2019 <= a <= 2024]
+    por_emp = (b.groupby(["anio_fuente", "beneficiario_canonico"], observed=True)["monto_real"]
+               .sum().unstack(0).fillna(0.0) / 1e6)
+    tot_anio = por_emp.sum(axis=0)
+    part = por_emp.div(tot_anio, axis=1) * 100
+
+    gp = pd.DataFrame({
+        "sh_epn": part[EPN].mean(axis=1), "sh_amlo": part[AMLO].mean(axis=1),
+        "mdp_epn": por_emp[EPN].mean(axis=1), "mdp_amlo": por_emp[AMLO].mean(axis=1),
+        "en_epn": (por_emp[EPN] > 0).any(axis=1), "en_amlo": (por_emp[AMLO] > 0).any(axis=1),
+    })
+    gp["dif"] = gp.sh_amlo - gp.sh_epn
+
+    UMBRAL = 0.25  # % de participación en algún sexenio para entrar al ranking
+    ambos = gp[(gp.en_epn & gp.en_amlo) & ((gp.sh_epn >= UMBRAL) | (gp.sh_amlo >= UMBRAL))]
+    salieron = gp[gp.en_epn & ~gp.en_amlo & (gp.sh_epn >= 0.05)]
+    entraron = gp[~gp.en_epn & gp.en_amlo & (gp.sh_amlo >= 0.05)]
+
+    def _fila(nombre, r):
+        return [ind.get(nombre, 0), round(float(r.sh_epn), 3), round(float(r.sh_amlo), 3),
+                _mdp(r.mdp_epn * 1e6), _mdp(r.mdp_amlo * 1e6)]
+
+    ganperd = {
+        "ambos": [_fila(k, r) for k, r in ambos.sort_values("dif", ascending=False).iterrows()],
+        "salieron": [_fila(k, r) for k, r in salieron.sort_values("sh_epn", ascending=False).iterrows()],
+        "entraron": [_fila(k, r) for k, r in entraron.sort_values("sh_amlo", ascending=False).iterrows()],
+        "epn": [EPN[0], EPN[-1]], "amlo": [AMLO[0], AMLO[-1]],
+        "n_total": int(len(gp)), "umbral": UMBRAL,
+    }
+
     # Campañas: el nombre solo existe desde 2024; antes solo hay una clave opaca.
     camp = b[b.campana_nombre.notna()]
     campanas = {}
@@ -174,8 +219,8 @@ def construir_datos(df: pd.DataFrame) -> dict:
         s = (g.groupby("campana_nombre", observed=True)["monto_real"].sum() / 1e6)
         s = s[s > 0].sort_values(ascending=False)
         campanas[str(int(anio))] = {
-            "items": [{"n": str(k), "v": round(float(v), 2)} for k, v in s.items()],
-            "total": round(float(s.sum()), 1)}
+            "items": [{"n": str(k), "v": _mdp(v * 1e6)} for k, v in s.items()],
+            "total": _mdp(s.sum() * 1e6)}
 
     return {"serie": serie,
             "instituciones": treemap(**PANELES["instituciones"]),
@@ -184,6 +229,7 @@ def construir_datos(df: pd.DataFrame) -> dict:
             "conc": conc,
             "medios": medios,
             "campanas": campanas,
+            "ganperd": ganperd,
             "meta": {"renglones": int(len(b)), "columnas": int(len(df.columns)),
                      "polizas": int(b.poliza_id.nunique()),
                      "total_real": round(float(b.monto_real.sum() / 1e6), 1)}}
@@ -417,6 +463,34 @@ td:first-child{font-family:var(--font-body);color:var(--ink)}
   letter-spacing:.09em;color:var(--accent-deep);font-weight:700;padding-top:16px;
   border-bottom:1px solid var(--line-2)}
 
+/* ── ganadores y perdedores ── */
+.gp-cab,.gp-fila{display:grid;
+  grid-template-columns:minmax(130px,1.5fr) minmax(150px,2fr) 66px 92px 96px;
+  gap:12px;align-items:center}
+.gp-cab{font-family:var(--font-display);font-size:11px;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--ink-3);font-weight:600;padding:0 4px 8px;
+  border-bottom:1px solid var(--line-2)}
+.gp-cab .der,.gp-fila .der{text-align:right}
+.gp-fila{padding:6px 4px;border-bottom:1px solid var(--line);font-size:13px}
+.gp-fila:hover{background:var(--surface-2)}
+.gp-fila .nombre{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.gp-fila .num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;
+  color:var(--ink-2);text-align:right;font-size:12.5px}
+/* Barra divergente: el cero al centro, gana a la derecha y pierde a la izquierda. */
+.dv{position:relative;height:17px;background:linear-gradient(var(--line),var(--line)) no-repeat
+  center/1px 100%}
+.dv i{position:absolute;top:2px;height:13px;border-radius:3px}
+.dv i.mas{left:50%;background:var(--accent)}
+.dv i.menos{right:50%;background:var(--c3)}
+.dv b{position:absolute;top:0;font-family:var(--font-mono);font-size:11.5px;line-height:17px;
+  font-variant-numeric:tabular-nums;font-weight:700}
+.dv b.mas{color:var(--accent-deep)}
+.dv b.menos{color:var(--c4)}
+@media (max-width:640px){
+  .gp-cab,.gp-fila{grid-template-columns:minmax(100px,1.3fr) minmax(90px,1.6fr) 56px}
+  .gp-cab span:nth-child(n+4),.gp-fila .mdp{display:none}
+}
+
 /* ── concentración ── */
 .conc-cab,.conc-fila{display:grid;grid-template-columns:minmax(150px,1.6fr) minmax(120px,2.2fr) 58px 72px 92px;
   gap:12px;align-items:center}
@@ -592,6 +666,33 @@ CUERPO = """
   </section>
 
   <section>
+    <h2>Qui&eacute;n gan&oacute; y qui&eacute;n perdi&oacute; con el cambio de sexenio</h2>
+    <p class="sub">Participaci&oacute;n promedio en el gasto federal durante el sexenio de
+      Pe&ntilde;a Nieto (__EPN__) contra el de L&oacute;pez Obrador (__AMLO__).</p>
+    <p class="aviso">
+      <b>Se compara participaci&oacute;n, no pesos, y sexenios, no a&ntilde;os.</b> En 2019 el
+      gasto real cay&oacute; 67%: medido en pesos absolutos perdieron todos, as&iacute; que el
+      monto no distingue a quien perdi&oacute; terreno de quien solo vivi&oacute; el recorte.
+      Y el cambio de participaci&oacute;n de un a&ntilde;o al siguiente tiene una mediana de
+      0.021 pp &mdash;casi todo ruido&mdash;, por eso se promedian seis a&ntilde;os de cada lado.
+      <b>La columna de millones est&aacute; al lado a prop&oacute;sito:</b> hay quien gan&oacute;
+      participaci&oacute;n cobrando menos.
+    </p>
+    <div class="card">
+      <div class="filtros">
+        <select id="gVista" aria-label="Qu&eacute; mostrar">
+          <option value="ambos">Empresas presentes en los dos sexenios</option>
+          <option value="salieron">Dejaron de recibir dinero</option>
+          <option value="entraron">Aparecieron con L&oacute;pez Obrador</option>
+        </select>
+      </div>
+      <p class="cuenta" id="gCuenta"></p>
+      <div class="gp-cab" id="gCab"></div>
+      <div class="conc-scroll" id="gLista"></div>
+    </div>
+  </section>
+
+  <section>
     <h2>Qu&eacute; tan concentrado est&aacute; el gasto de cada instituci&oacute;n</h2>
     <p class="sub">Qu&eacute; porcentaje del dinero de cada instituci&oacute;n se lo llev&oacute;
       su proveedor m&aacute;s grande, de la m&aacute;s concentrada a la menos.
@@ -749,7 +850,14 @@ function fmtM(v, compacto){
   if(a >= 1)      return fmt1(v) + (compacto ? '' : ' MDP');
   if(a >= 0.001)  return fmt(v*1e3) + (compacto ? ' mil' : ' mil pesos');
   if(a > 0)       return fmt(v*1e6) + (compacto ? ' $' : ' pesos');
-  return compacto ? '0' : 'sin gasto';
+  return compacto ? '—' : 'sin gasto';
+}
+/* Mismo problema con los porcentajes: 78 pesos sobre 12,735 millones es 0.0000006%,
+   y "0.00%" se lee como "nada" cuando es "muy poco pero existe". */
+function fmtPct(p){
+  if(p === 0)     return '—';
+  if(p < 0.01)    return '<0.01%';
+  return p.toFixed(2) + '%';
 }
 const css  = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const S='http://www.w3.org/2000/svg';
@@ -888,11 +996,11 @@ function drawMap(svgId,bloque,etiqueta){
       if(h>30){ const t2=el('text',{x:c.x+6,y:c.y+29,class:'cell-val',fill:ink,opacity:.85});
         t2.textContent=fmtM(c.v,true); g.appendChild(t2); }
     }
-    const pct=(100*c.v/d.total).toFixed(2);
+    const pct=fmtPct(100*c.v/d.total);
     const titulo=esGrupo?'Puestos '+c.n+' del ranking':c.n;
     const detalle=esGrupo?'<br>suma de '+fmt(c.grupo)+' '+etiqueta:'';
     const info=e=>showTip(e,'<b>'+titulo+'</b><span class="n">'+fmtM(c.v)+
-      '</span> de 2020<br><span class="n">'+pct+'%</span> del gasto de '+anioSel+detalle);
+      '</span> de 2020<br><span class="n">'+pct+'</span> del gasto de '+anioSel+detalle);
     g.addEventListener('mousemove',info);
     g.addEventListener('mouseleave',hideTip);
     svg.appendChild(g);
@@ -1099,9 +1207,9 @@ function pintaCamp(){
       if(h>30){ const t2=el('text',{x:c.x+6,y:c.y+29,class:'cell-val',fill:ink,opacity:.85});
         t2.textContent=fmtM(c.v,true); g.appendChild(t2); }
     }
-    const pct=(100*c.v/d.total).toFixed(2);
+    const pct=fmtPct(100*c.v/d.total);
     g.addEventListener('mousemove',e=>showTip(e,'<b>'+c.n+'</b><span class="n">'+fmtM(c.v)+
-      '</span> de 2020<br><span class="n">'+pct+'%</span> de las campañas de '+an));
+      '</span> de 2020<br><span class="n">'+pct+'</span> de las campañas de '+an));
     g.addEventListener('mouseleave',hideTip);
     svg.appendChild(g);
   });
@@ -1114,6 +1222,64 @@ function pintaCamp(){
   document.getElementById('kAnio').addEventListener('change',pintaCamp);
   pintaCamp();
 })();
+
+/* ── ganadores y perdedores ─────────────────────────────────────────── */
+/* Fila: [idxNombre, shEPN, shAMLO, mdpEPN, mdpAMLO] */
+const GP = DATA.ganperd;
+
+function pintaGP(){
+  const vista = document.getElementById('gVista').value;
+  const filas = GP[vista] || [];
+  const esAmbos = vista === 'ambos';
+  const dif = f => f[2] - f[1];
+  const maxDif = Math.max(0.01, ...filas.map(f=>Math.abs(dif(f))));
+  const maxSh  = Math.max(0.01, ...filas.map(f=>Math.max(f[1],f[2])));
+
+  const cab = esAmbos
+    ? ['Empresa','Cambio de participación','pp','Millones EPN','Millones AMLO']
+    : ['Empresa', vista==='salieron' ? 'Participación que tenía' : 'Participación que alcanzó',
+       '%','Millones EPN','Millones AMLO'];
+  document.getElementById('gCab').innerHTML =
+    cab.map((c,i)=>'<span'+(i>=2?' class="der"':'')+'>'+c+'</span>').join('');
+
+  const nGana = filas.filter(f=>dif(f)>0).length;
+  document.getElementById('gCuenta').innerHTML = esAmbos
+    ? '<b>'+fmt(filas.length)+'</b> empresas con al menos '+GP.umbral+
+      '% de participación en algún sexenio · <b>'+nGana+'</b> ganaron terreno, <b>'+
+      (filas.length-nGana)+'</b> lo perdieron'
+    : '<b>'+fmt(filas.length)+'</b> empresas con al menos 0.05% de participación'+
+      (vista==='salieron' ? ' que dejaron de aparecer' : ' que no existían antes de 2019');
+
+  document.getElementById('gLista').innerHTML = filas.map(f=>{
+    const nom = T.nombres[f[0]];
+    let barra;
+    if(esAmbos){
+      const d = dif(f), w = 50*Math.abs(d)/maxDif;
+      const lado = d>=0 ? 'mas' : 'menos';
+      const etq = (d>=0?'+':'−')+Math.abs(d).toFixed(2);
+      const posx = d>=0 ? 'left:calc(50% + '+(w+1.5)+'%)' : 'right:calc(50% + '+(w+1.5)+'%)';
+      barra = '<span class="dv"><i class="'+lado+'" style="width:'+w.toFixed(1)+'%"></i>'+
+        '<b class="'+lado+'" style="'+posx+'">'+etq+'</b></span>';
+    } else {
+      const v = vista==='salieron' ? f[1] : f[2];
+      const w = 96*v/maxSh;
+      barra = '<span class="dv" style="background:none"><i class="mas" style="left:0;width:'+
+        w.toFixed(1)+'%;background:'+(vista==='salieron'?'var(--c3)':'var(--accent)')+'"></i>'+
+        '<b class="mas" style="left:calc('+w.toFixed(1)+'% + 6px)">'+v.toFixed(2)+'</b></span>';
+    }
+    const pp = esAmbos ? (dif(f)>=0?'+':'−')+Math.abs(dif(f)).toFixed(2)
+                       : (vista==='salieron'?f[1]:f[2]).toFixed(2);
+    const tit = nom+' — EPN: '+f[1].toFixed(3)+'% y '+fmtM(f[3])+' al año · '+
+      'AMLO: '+f[2].toFixed(3)+'% y '+fmtM(f[4])+' al año';
+    return '<div class="gp-fila" title="'+tit.replace(/"/g,'&quot;')+'">'+
+      '<span class="nombre">'+nom+'</span>'+barra+
+      '<span class="num der">'+pp+'</span>'+
+      '<span class="num der mdp">'+fmtM(f[3],true)+'</span>'+
+      '<span class="num der mdp">'+fmtM(f[4],true)+'</span></div>';
+  }).join('');
+}
+document.getElementById('gVista').addEventListener('change',pintaGP);
+pintaGP();
 
 /* ── concentración de proveedores ───────────────────────────────────── */
 /* El diccionario de nombres se comparte con el buscador, así que se declara aquí,
@@ -1230,7 +1396,7 @@ function pintar(){
     tb += '<tr><td>'+f[0]+'</td><td><span class="pill '+(f[1]?'emp':'inst')+'" title="'+
       (f[1]?'Monto recibido por la empresa':'Monto erogado por la institución')+'">'+
       (f[1]?'Empresa':'Instit.')+'</span></td><td>'+T.nombres[f[2]]+'</td><td>'+
-      fmtM(f[3],true)+'</td><td>'+pct.toFixed(2)+'%</td><td>'+fmtM(f[4],true)+'</td><td>'+
+      fmtM(f[3],true)+'</td><td>'+fmtPct(pct)+'</td><td>'+fmtM(f[4],true)+'</td><td>'+
       fmt(f[5])+'</td><td>'+fmt(f[6])+'</td><td>'+(f[7]?fmtM(f[7],true):'—')+'</td></tr>';
   }
   document.getElementById('tblBusca').innerHTML = n
@@ -1424,6 +1590,8 @@ def _fragmento(datos: dict) -> str:
               .replace("__COLUMNAS__", str(datos["meta"]["columnas"]))
               .replace("__POLIZAS__", f"{datos['meta']['polizas']:,}")
               .replace("__TOP__", str(PANELES["beneficiarios"]["top"]))
+              .replace("__EPN__", "{}–{}".format(*datos["ganperd"]["epn"]))
+              .replace("__AMLO__", "{}–{}".format(*datos["ganperd"]["amlo"]))
               .replace("__FILAS__", f"{len(datos['tabla']['filas']):,}")
               .replace("__ENTIDADES__", f"{len(datos['tabla']['nombres']):,}")
               .replace("__URL_COMSOC__", URL_COMSOC)

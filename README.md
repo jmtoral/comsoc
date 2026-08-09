@@ -244,6 +244,94 @@ La autoría (**Manuel Toral**) va en el `<meta name="author">`, en la cabecera, 
 y —lo que importa— **dentro de cada SVG**: cualquier captura o recorte de una gráfica se lleva el
 crédito consigo.
 
+## Cómo se agrupan los nombres
+
+El problema de fondo: **el gasto está en pesos pero el análisis es sobre entidades**, y la fuente
+escribe la misma empresa de muchas formas. Sin agrupar bien, Televisa aparece dos veces, La
+Jornada tres, y una empresa que solo cambió de redacción parece «nueva».
+
+La estrategia tiene **cuatro capas**, aplicadas en orden. Las tres primeras son deterministas y
+auditables; la cuarta todavía no está hecha.
+
+### 1. Clave dura — colapsa variantes de escritura
+
+Se compara una forma reducida del nombre: sin acentos, sin puntuación, sin sufijos de razón
+social (`S.A. DE C.V.`, `S.C.`, `S.A.P.I.`) y **sin espacios**.
+
+Quitar los espacios es lo que resuelve el ruido característico de esta fuente, que **parte
+palabras a la mitad**:
+
+| en el Excel | clave dura |
+|---|---|
+| `EL UNIVERSAL CIA. PERIODISTICA NAC IONAL, S.A. DE C.V.` | `ELUNIVERSALCIAPERIODISTICANACIONAL` |
+| `EL UNIVERSAL CIA. PERIODISTICA NACIONAL, S.A. DE C.V.` | `ELUNIVERSALCIAPERIODISTICANACIONAL` |
+
+Con espacios son cadenas distintas; sin ellos, la misma. Casos reales que une: **La Jornada**
+(`DEMOS DESARROLLO DE MED IOS` en tres redacciones), **OEM** (tres), **Medios Masivos Mexicanos**
+(tres), **Grupo Fórmula** (`GRUPO DE RADIODIFUSORAS` y `GRUPO RADIODIFUSORAS`).
+
+### 2. RFC — une razones sociales que se llaman distinto
+
+Dos claves duras que comparten RFC son la misma empresa aunque el nombre no se parezca:
+
+| RFC | razones sociales que une | MDP |
+|---|---|---:|
+| `ADI0809035M0` | `AGENCIA DIGITAL` · `AGENCIA DIGITAL, S.A.P.I DE C.V.` | 110.5 |
+| `AAR1007303W10` | `ARTM ASOCIACION DE REDES DE TELECO MUNICACIONES` · `ASOCIACIÓN DE TELECOMUNICACIONES INDEPENDIENTES DE MÉXICO` | 18.9 |
+
+⚠ **El RFC solo existe en 2012–2016 y 2024–2025.** En 2017–2023 la fuente no lo publica, así que
+esta capa no alcanza al hueco de siete años. Ver [HANDOFF.md](HANDOFF.md) §3.12 sobre el bug que
+hacía parecer que la cobertura era del 100%.
+
+Las capas 1 y 2 se resuelven juntas con *union-find*: si A y B comparten clave dura, y B y C
+comparten RFC, los tres son la misma empresa. El nombre que se muestra es **el crudo más
+frecuente** del grupo, que es el que la fuente escribe bien más veces.
+
+### 3. Reglas editoriales — agrupan lo que los datos no pueden saber
+
+`config/beneficiarios_map.csv` (37 reglas) y `config/instituciones_map.csv` (23). Codifican
+criterio humano: que `TELEVISA, S.A. DE C.V.` y `TELEVISA S. DE R.L. DE C.V.` son **Televisa**, o
+que varias filiales pertenecen al mismo grupo. Se aplican **sobre el representante** del grupo, no
+sobre cada variante, para que el resultado no dependa de qué redacción tocó.
+
+Van como datos y no como código porque son un criterio discutible que hay que poder auditar y
+corregir sin tocar el pipeline.
+
+**Cobertura: 63.1% del gasto.** El resto cae a Title Case y **no agrupa** filiales de un mismo
+grupo. Para un top-10 alcanza; para afirmar «el grupo X recibió N», verifica que X tenga regla.
+
+Dos reglas heredadas siguen sobre-incluyentes y están documentadas en el HANDOFF: `imagen|image`
+(mezcla 50 RFC distintos) y `sociedad mexicana` (se traga a la Sociedad Mexicana de Física).
+
+### 4. Similitud aproximada — pendiente, y a propósito
+
+Queda un residuo que ninguna capa determinista alcanza: nombres que difieren en una palabra y
+caen en los años sin RFC. El caso testigo es **El Heraldo de México**:
+
+```
+OPERADORA Y ADMINISTRADORA DE INFOR MACIÓN Y EDITORIAL   →  agrupado, 143.2 MDP
+OPERADORA Y ADMINISTRADORA DE INFORMACION   EDITORIAL    →  suelto,   121.7 MDP  (2017-2021)
+                                          ↑ sin la «Y»
+```
+
+Sobrevive a la clave dura porque le falta una palabra, y no hay RFC en esos años para unirlos.
+
+**No se implementó a ciegas.** Fusionar 121.7 MDP por parecido tipográfico sin verificar es
+exactamente el error que invalida un hallazgo publicado. Cuando se haga, debe ser: generar los
+pares candidatos con su puntaje, **revisarlos a mano**, y guardar las decisiones aprobadas en un
+CSV auditable — no aplicar un umbral automático.
+
+### Resultado
+
+| paso | nombres distintos |
+|---|---:|
+| razones sociales en los Excel | 4,954 |
+| tras clave dura y RFC | 4,671 |
+| tras reglas editoriales | **4,504** |
+
+El total del gasto no cambia en ningún paso: **97,090.5 MDP**, verificado contra las cuatro
+pruebas de aceptación.
+
 ## Deflactor
 
 `config/deflactor.csv` — implícito del PIB, base 2020=100, serie 1993–2026 completa, de la

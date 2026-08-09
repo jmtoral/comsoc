@@ -377,7 +377,76 @@ ordenados de mayor a menor.
 *Si alguien quiere «arreglarlo» poniendo nueve colores: ya se midió, no se puede. Con ocho series
 o menos sí; con nueve, la identidad tiene que venir de otro canal.*
 
-### 3.16 Entorno: conda local
+### 3.16 Ganadores y perdedores del cambio de sexenio
+
+Participación promedio en EPN (2013–2018) contra AMLO (2019–2024), con barras divergentes
+desde el cero.
+
+**Dos decisiones metodológicas, ambas medidas antes de construir:**
+
+- **Participación y no pesos.** En 2019 el gasto real cayó 67%: en montos absolutos perdieron
+  todos, y el monto no distingue a quien perdió terreno de quien solo vivió el recorte.
+- **Sexenios y no años.** El cambio interanual mediano de participación es **0.021 pp** y el
+  percentil 90 es 0.640 pp: un ranking anual mide sobre todo ruido.
+
+Tres vistas, porque la mayoría de las empresas no está en los dos periodos: **68 presentes en
+ambos**, **72 que dejaron de aparecer**, **37 que aparecieron con AMLO**. De las 918 empresas de
+2018, solo 334 seguían en 2019.
+
+La columna de millones va al lado a propósito: **hay quien ganó participación cobrando menos.**
+Milenio subió 2.71 pp mientras pasaba de 167 a 104 MDP al año; La Jornada subió 7.72 pp y además
+duplicó en pesos (100 → 210).
+
+| ganaron | pp | | perdieron | pp |
+|---|---:|---|---|---:|
+| La Jornada | +7.72 | | Televisa | −6.91 |
+| Medios Masivos Mexicanos | +5.27 | | PROMOTUR / STARCOM | −5.25 |
+| Milenio | +2.71 | | TV Azteca | −3.55 |
+
+⚠ El «efecto denominador» existe pero es chico: de las empresas que cobraron lo mismo (±10%) entre
+2018 y 2019, **18 de 18 ganaron participación**, con mediana de +0.009 pp. Dirección
+determinista, magnitud despreciable.
+
+### 3.17 Cuatro capas para agrupar nombres, y por qué la cuarta no está
+
+Documentado a detalle en [README.md](README.md). Resumen:
+
+| capa | qué resuelve | resultado |
+|---|---|---:|
+| 1. Clave dura | ruido de captura: «NAC IONAL», «INFOR MACIÓN» | 4,954 → 4,621 |
+| 2. RFC | razones sociales distintas de la misma empresa | (unidas con union-find) |
+| 3. Reglas editoriales | filiales de un grupo | 4,621 → **4,481** |
+| 4. Similitud aproximada | el residuo | **pendiente** |
+
+**El orden dentro de la clave dura importaba y estaba mal.** Se sustituía la puntuación por
+espacios y *luego* se quitaban los sufijos, así que `S.C.` quedaba en `S C` y no coincidía con
+`SC`: AGAVIS Digital aparecía partida en dos por **267 MDP**. Ahora se compacta primero y los
+sufijos se recortan del final ya compactados. También unió Minería Personal (`SA DE CV` contra
+`SAPI DE CV`) y Radiodifusoras Unidas de Tabasco.
+
+**Por qué la capa 4 sigue pendiente.** Se corrió `rapidfuzz` sobre los 1,827 grupos con ≥1 MDP:
+15 pares candidatos con score ≥88 y sin RFC contradictorio. **Cerca de la mitad son falsos
+positivos**, y no sutiles:
+
+```
+score 90   AMS COMUNICACIONES   vs  NRM COMUNICACIONES   ← NRM es Núcleo Radio Mil
+score 88   CPM MEDIOS           vs  P4 MEDIOS
+score 90   RSN COMUNICACION     vs  TRANS-COMUNICACIÓN
+```
+
+Contra el verdadero positivo que se busca:
+
+```
+score 99   OPERADORA Y ADMINISTRADORA DE INFOR MACIÓN   EDITORIAL  (2017–2021, 121.7 MDP)
+           OPERADORA Y ADMINISTRADORA DE INFOR MACIÓN Y EDITORIAL  (2022–2025, 122.8 MDP)
+```
+
+Un umbral automático que atrape El Heraldo también fusiona AMS con Núcleo Radio Mil. **La
+implementación correcta es generar los candidatos, revisarlos a mano y guardar las decisiones
+aprobadas en un CSV auditable** — no aplicar un umbral. El script de exploración quedó en
+`legacy/diagnostico/fuzzy_demo.py`.
+
+### 3.18 Entorno: conda local
 
 Se descartó Colab. Todo corre en local sobre **`pnt_analysis`**, environment **reutilizado** de
 otro proyecto del mismo dominio: Python 3.12.3, pandas 2.2.2, pyarrow 16.1, plotnine 0.13.6,
@@ -386,7 +455,7 @@ networkx, scipy, matplotlib, ipykernel. Se le agregaron `openpyxl`, `pyyaml` y `
 Intérprete: `C:\Users\User\anaconda3\envs\pnt_analysis\python.exe`. `conda` no está en el PATH.
 Correr siempre con `-X utf8`.
 
-### 3.17 Código
+### 3.19 Código
 
 `src/comsoc/`: `config`, `layouts`, `schema`, `ingest`, `clean`, `entities`, `ids`, `deflate`,
 `validate`, `export`, `reporte`, `zoom`, `build`.
