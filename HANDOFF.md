@@ -397,11 +397,25 @@ La columna de millones va al lado a propósito: **hay quien ganó participación
 Milenio subió 2.71 pp mientras pasaba de 167 a 104 MDP al año; La Jornada subió 7.72 pp y además
 duplicó en pesos (100 → 210).
 
-| ganaron | pp | | perdieron | pp |
+**Tres comparaciones posibles**, elegibles en la página: Peña Nieto vs López Obrador,
+Peña Nieto vs Sheinbaum y López Obrador vs Sheinbaum.
+
+| Peña Nieto → López Obrador | pp | | López Obrador → Sheinbaum | pp |
 |---|---:|---|---|---:|
-| La Jornada | +7.72 | | Televisa | −6.91 |
-| Medios Masivos Mexicanos | +5.27 | | PROMOTUR / STARCOM | −5.25 |
-| Milenio | +2.71 | | TV Azteca | −3.55 |
+| La Jornada | +7.72 | | Amx Contenido | +1.79 |
+| Medios Masivos Mexicanos | +5.27 | | La B Grande | +1.78 |
+| Milenio | +2.71 | | El Heraldo | +1.58 |
+| Televisa | −6.91 | | TV Azteca | **−8.72** |
+| PROMOTUR / STARCOM | −5.25 | | Medios Masivos Mexicanos | −5.96 |
+| TV Azteca | −3.55 | | La Jornada | −2.56 |
+
+El desplome de **TV Azteca** es el dato más fuerte de la serie: de 12.91% del gasto federal con
+Peña Nieto a **0.65% con Sheinbaum**, −12.27 pp. Pasó de 1,421 a 22 MDP al año.
+
+⚠ **Sheinbaum solo tiene 2025 en los datos.** Un año suelto contra un promedio de seis no es
+comparable sin decirlo: la página muestra un aviso automático cuando alguno de los dos periodos
+tiene menos de tres años. 2024 se atribuye entero a AMLO porque nueve de sus doce meses
+corrieron bajo su gobierno.
 
 ⚠ El «efecto denominador» existe pero es chico: de las empresas que cobraron lo mismo (±10%) entre
 2018 y 2019, **18 de 18 ganaron participación**, con mediana de +0.009 pp. Dirección
