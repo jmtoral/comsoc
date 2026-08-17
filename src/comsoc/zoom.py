@@ -28,11 +28,19 @@ import pandas as pd
 from .config import DOCS_DIR, POLIZAS_PARQUET, asegurar_directorios
 from .reporte import AUTOR, FAVICON, TOKENS, URL_COMSOC, alias_busqueda
 
+# El color sigue al TIPO DE ENTIDAD, no al nivel: institución = rosa, empresa =
+# ámbar, producto = verde azulado. Con tres vistas cruzadas —y dos de ellas
+# inversas entre sí— colorear por nivel haría que la misma entidad cambiara de
+# color según desde dónde llegaste.
+RAMPAS = {"institucion": "r", "empresa": "a", "producto": "c"}
+
 VISTAS = {
     "quien-paga-a-quien": {
         "archivo": "quien-paga-a-quien.html",
         "padre": "institucion_canonica",
         "hijo": "beneficiario_canonico",
+        "tipo_padre": "institucion",
+        "tipo_hijo": "empresa",
         "titulo": "¿Qui&eacute;n le paga <em>a qui&eacute;n</em>?",
         "titulo_tab": "¿Qui&eacute;n le paga a qui&eacute;n? &middot; Publicidad oficial federal",
         "bajada": ("Gasto federal en publicidad oficial. Cada caja es una instituci&oacute;n y su "
@@ -48,10 +56,33 @@ VISTAS = {
                         "cada caja es una institucion; al darle clic se abren las empresas que "
                         "recibieron su dinero."),
     },
+    "empresas": {
+        "archivo": "empresas.html",
+        "padre": "beneficiario_canonico",
+        "hijo": "institucion_canonica",
+        "tipo_padre": "empresa",
+        "tipo_hijo": "institucion",
+        "titulo": "¿Qui&eacute;n le cobra <em>a qui&eacute;n</em>?",
+        "titulo_tab": "¿Qui&eacute;n le cobra a qui&eacute;n? &middot; Publicidad oficial federal",
+        "bajada": ("El mismo dinero visto al rev&eacute;s. Cada caja es una empresa y su "
+                   "tama&ntilde;o es lo que cobr&oacute;. <b>Da clic</b> para ver qu&eacute; "
+                   "instituciones le pagaron."),
+        "etq_padre": "empresas",
+        "etq_hijo": "instituciones",
+        "cab_padre": "Empresas que cobran",
+        "cab_hijo": "Instituciones que pagan",
+        "buscar": "Buscar empresa&hellip;",
+        "volver": "Todas las empresas",
+        "descripcion": ("Treemap interactivo del gasto federal mexicano en publicidad oficial "
+                        "por empresa: cada caja es un proveedor y al darle clic se abren las "
+                        "instituciones que le pagaron."),
+    },
     "medios": {
         "archivo": "medios.html",
         "padre": "beneficiario_canonico",
         "hijo": "medio_producto",
+        "tipo_padre": "empresa",
+        "tipo_hijo": "producto",
         "titulo": "¿En qu&eacute; <em>medios</em>?",
         "titulo_tab": "¿En qu&eacute; medios? &middot; Publicidad oficial federal",
         "bajada": ("Gasto federal en publicidad oficial por medio de comunicaci&oacute;n. Cada "
@@ -103,12 +134,9 @@ def construir_datos(df: pd.DataFrame, vista: dict) -> dict:
 
     # Palabras extra para el buscador: sin esto, `imss` y `lotería` no encuentran
     # nada, porque la homologación quita el acrónimo y renombra a LOTENAL.
-    if padre == "institucion_canonica":
-        siglas = alias_busqueda(b, "institucion", "institucion_canonica")
-    elif padre == "beneficiario_canonico":
-        siglas = alias_busqueda(b, "beneficiario", "beneficiario_canonico")
-    else:
-        siglas = {}
+    crudo = {"institucion_canonica": "institucion",
+             "beneficiario_canonico": "beneficiario"}.get(padre)
+    siglas = alias_busqueda(b, crudo, padre) if crudo else {}
     alias = [siglas.get(n, "") for n in nombres]
 
     anios = sorted(par.anio_fuente.unique().astype(int).tolist())
@@ -229,8 +257,8 @@ CUERPO = """
   <span>An&aacute;lisis y elaboraci&oacute;n: <b>__AUTOR__</b> &middot; Millones de pesos
     constantes de 2020 &middot; Solo gasto federal</span>
   <span>Fuente: Sistema COMSOC &middot;
-    <a href="__URL_COMSOC__" rel="noopener">gob.mx/buengobierno</a> &middot;
-    <a href="__OTRA_VISTA__">__OTRA_ETQ__</a> &middot;
+    <a href="__URL_COMSOC__" rel="noopener">gob.mx/buengobierno</a>
+    __OTRAS_VISTAS__ &middot;
     <a href="index.html">Reporte completo</a></span>
 </footer>
 
@@ -338,7 +366,7 @@ function dibuja(cells,total,esInstitucion,desde){
   svg.textContent='';
   const max=cells.length?cells[0].v:1;
   const nodos=[];
-  const fam = esInstitucion ? 'r' : 'a';   /* rosa: instituciones · ámbar: empresas */
+  const fam = esInstitucion ? ETQ.rampa_padre : ETQ.rampa_hijo;
   cells.forEach(c=>{
     const paso=tono(c.v,max);
     const g=el('g',{class:'cel'+(esInstitucion?' click':'')});
@@ -530,19 +558,23 @@ render(null);
 """
 
 
-def _pagina(datos: dict, vista: dict, otra: dict) -> str:
+def _pagina(datos: dict, vista: dict, otras: list[dict]) -> str:
     etiquetas = {
         "padre": vista["etq_padre"], "hijo": vista["etq_hijo"],
         "volver": vista["volver"], "de_esta": vista["cab_padre"].lower().rstrip("s"),
         "pista": f"Da clic en una caja para ver sus {vista['etq_hijo']}",
+        "rampa_padre": RAMPAS[vista["tipo_padre"]],
+        "rampa_hijo": RAMPAS[vista["tipo_hijo"]],
     }
+    enlaces = "".join(
+        f' &middot; <a href="{o["archivo"]}">{o["titulo_tab"].split(" &middot;")[0]}</a>'
+        for o in otras)
     cuerpo = (CUERPO
               .replace("__TITULO__", vista["titulo"])
               .replace("__BAJADA__", vista["bajada"])
               .replace("__BUSCAR__", vista["buscar"])
               .replace("__VOLVER__", vista["volver"])
-              .replace("__OTRA_VISTA__", otra["archivo"])
-              .replace("__OTRA_ETQ__", otra["cab_padre"])
+              .replace("__OTRAS_VISTAS__", enlaces)
               .replace("__AUTOR__", AUTOR)
               .replace("__URL_COMSOC__", URL_COMSOC))
     guion = (GUION
@@ -566,10 +598,10 @@ def _pagina(datos: dict, vista: dict, otra: dict) -> str:
 def construir(cual: str = "quien-paga-a-quien", destino: Path | None = None) -> Path:
     asegurar_directorios()
     vista = VISTAS[cual]
-    otra = VISTAS["medios" if cual == "quien-paga-a-quien" else "quien-paga-a-quien"]
+    otras = [v for k, v in VISTAS.items() if k != cual]
     datos = construir_datos(pd.read_parquet(POLIZAS_PARQUET), vista)
     ruta = destino or (DOCS_DIR / vista["archivo"])
-    ruta.write_text(_pagina(datos, vista, otra), encoding="utf-8")
+    ruta.write_text(_pagina(datos, vista, otras), encoding="utf-8")
     print(f"  {ruta.name:26} {ruta.stat().st_size / 1024:>6,.0f} KB  "
           f"{len(datos['filas']):>7,} pares · {datos['meta']['padres']} {vista['etq_padre']}")
     return ruta

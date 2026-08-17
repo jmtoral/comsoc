@@ -399,7 +399,9 @@ td:first-child{font-family:var(--font-body);color:var(--ink)}
 
   <section>
     <h2>Explora el gasto a pantalla completa</h2>
-    <p class="sub">Dos treemaps interactivos: cada caja se abre al darle clic.</p>
+    <p class="sub">Tres treemaps interactivos: cada caja se abre al darle clic. El color sigue
+      al tipo de entidad &mdash; <b style="color:var(--r3)">instituciones</b>,
+      <b style="color:var(--a3)">empresas</b>, <b style="color:var(--c4)">productos</b>.</p>
     <div class="portadas">
       <a class="portada" href="quien-paga-a-quien.html">
         <span class="mini" aria-hidden="true">
@@ -407,24 +409,38 @@ td:first-child{font-family:var(--font-body);color:var(--ink)}
           <i style="grid-area:1/3/2/5;background:var(--r3)"></i>
           <i style="grid-area:2/3/3/4;background:var(--r2)"></i>
           <i style="grid-area:2/4/3/5;background:var(--r1)"></i>
-          <i style="grid-area:3/1/4/3;background:var(--r2)"></i>
-          <i style="grid-area:3/3/4/5;background:var(--r1)"></i>
+          <i style="grid-area:3/1/4/3;background:var(--a3)"></i>
+          <i style="grid-area:3/3/4/5;background:var(--a2)"></i>
         </span>
         <b>&iquest;Qui&eacute;n le paga a qui&eacute;n?</b>
         <span>Cada caja es una instituci&oacute;n. Da clic y se abren las empresas que
           recibieron su dinero &mdash; el IMSS le pag&oacute; a 705 distintas.</span>
         <span class="ir">Abrir &rarr;</span>
       </a>
+      <a class="portada" href="empresas.html">
+        <span class="mini" aria-hidden="true">
+          <i style="grid-area:1/1/3/3;background:var(--a4)"></i>
+          <i style="grid-area:1/3/2/5;background:var(--a3)"></i>
+          <i style="grid-area:2/3/3/4;background:var(--a2)"></i>
+          <i style="grid-area:2/4/3/5;background:var(--a1)"></i>
+          <i style="grid-area:3/1/4/3;background:var(--r3)"></i>
+          <i style="grid-area:3/3/4/5;background:var(--r2)"></i>
+        </span>
+        <b>&iquest;Qui&eacute;n le cobra a qui&eacute;n?</b>
+        <span>El mismo dinero al rev&eacute;s. Cada caja es una empresa; da clic y se abren
+          las instituciones que le pagaron.</span>
+        <span class="ir">Abrir &rarr;</span>
+      </a>
       <a class="portada" href="medios.html">
         <span class="mini" aria-hidden="true">
           <i style="grid-area:1/1/4/3;background:var(--a4)"></i>
           <i style="grid-area:1/3/3/5;background:var(--a3)"></i>
-          <i style="grid-area:3/3/4/4;background:var(--a2)"></i>
-          <i style="grid-area:3/4/4/5;background:var(--a1)"></i>
+          <i style="grid-area:3/3/4/4;background:var(--c3)"></i>
+          <i style="grid-area:3/4/4/5;background:var(--c2)"></i>
         </span>
         <b>&iquest;En qu&eacute; medios?</b>
-        <span>Cada caja es un medio de comunicaci&oacute;n &mdash;Televisa, TV Azteca, La
-          Jornada&mdash;. Da clic y se abre qu&eacute; le vendi&oacute; al gobierno.</span>
+        <span>Tambi&eacute;n por empresa, pero al abrirla se ve <b>qu&eacute; producto</b>
+          vendi&oacute;: televisi&oacute;n, radio, internet, mobiliario urbano.</span>
         <span class="ir">Abrir &rarr;</span>
       </a>
     </div>

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(& \"C:\\\\Users\\\\User\\\\anaconda3\\\\python.exe\" -X utf8 \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Descargas-Publicidad-Oficial\\\\92c18e1e-fc20-4d10-83ce-f0ebfc15ca6d\\\\scratchpad\\\\check_inversa.py\" 2>&1)"
+    ]
+  }
+}

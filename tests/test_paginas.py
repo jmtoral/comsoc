@@ -41,6 +41,7 @@ PAGINAS = {
         ("#tblDicc tbody tr", "diccionario", 40),
     ],
     "quien-paga-a-quien.html": [("#mapa g.cel", "treemap de instituciones", 20)],
+    "empresas.html": [("#mapa g.cel", "treemap de empresas", 20)],
     "medios.html": [("#mapa g.cel", "treemap de medios", 20)],
 }
 
