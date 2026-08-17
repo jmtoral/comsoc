@@ -240,35 +240,50 @@ rampa `#FB7EBC → #F62477 → #C4104F → #92003A`, ΔL 0.116 / 0.108 / 0.107 s
 0.06. `#FFADEE` (L 0.85) y `#FFE185` (L 0.92) están muy por encima de la banda para ser marcas:
 se usan solo como fondo y realce. Tema único claro sobre crema `#FBF5E6`, deliberado.
 
-### 3.9 Treemaps con zoom (`zoom.py`) — dos vistas
+### 3.9 Treemaps con zoom (`zoom.py`) — tres vistas
 
-`python -m comsoc.zoom` genera **dos** páginas independientes del reporte, desde el mismo código
-parametrizado por el diccionario `VISTAS`:
+`python -m comsoc.zoom` genera **tres** páginas independientes del reporte, desde el mismo código
+parametrizado por el diccionario `VISTAS`. Agregar una cuarta es agregar un bloque ahí.
 
-| página | nivel 0 → nivel 1 | peso | gzip |
-|---|---|---:|---:|
-| `quien-paga-a-quien.html` | institución → empresas | 1,145 KB | 269 KB |
-| `medios.html` | **medio de comunicación** → producto | 575 KB | 155 KB |
+| página | nivel 0 → nivel 1 | peso |
+|---|---|---:|
+| `quien-paga-a-quien.html` | institución → empresas | 1,300 KB |
+| `empresas.html` | empresa → instituciones | 1,318 KB |
+| `medios.html` | empresa → productos | 632 KB |
 
-En `medios.html` cada caja del nivel 0 es una **empresa** —Televisa 14,958 MDP, TV Azteca 12,171,
-La Jornada 2,110— y al abrirla se ve qué le vendió al gobierno. Ahí salta un contraste de modelo
-de negocio: **TV Azteca vendió 27 productos distintos y Televisa solo 11**, con más dinero.
+`empresas.html` la pidió una periodista y es **la inversa exacta** de `quien-paga-a-quien`: los
+mismos 46,489 pares, leídos al revés. Verificado que Televisa suma 14,958.7 MDP por los dos lados,
+y que tiene **128 instituciones** pagándole.
 
-Cada caja se abre al darle clic y los hijos **crecen desde esa misma caja** hasta llenar el lienzo.
+⚠ `empresas.html` y `medios.html` **arrancan igual**, ambas con empresas en el nivel 0, y solo se
+distinguen al abrir una caja. Si resulta confuso, revertir `medios.html` a familia de medio →
+producto son cinco líneas en `VISTAS`.
 
-La animación interpola las coordenadas de cada celda en vez de aplicar un `transform` al grupo:
-así el texto no se deforma al escalar y no depende de cómo cada navegador resuelva
-`transform-box` en SVG. Al volver, las instituciones se despliegan desde la caja donde estabas.
+#### El color sigue al tipo de entidad, no al nivel
 
-Lleva el cruce **completo** institución × empresa × año: 45,763 tripletas, 1,122 KB / **257 KB con
-gzip**. No se recorta la cola porque es justo lo que hace interesante el zoom — el IMSS le pagó a
-**705 empresas distintas**.
+| entidad | rampa |
+|---|---|
+| institución | rosa `--r` |
+| empresa | ámbar `--a` |
+| producto | verde azulado `--c` |
 
-Se descartan 785 pares por debajo de 10 mil pesos (1.7 MDP de 97,090, un 0.0018%): al redondear a
-2 decimales quedaban en 0.00 y una celda de área cero hace dividir entre cero al squarify.
+Antes el nivel 0 era siempre rosa y el 1 ámbar. Con dos vistas inversas eso se rompe: **Televisa
+era ámbar en una y rosa en la otra** según desde dónde llegaras. Ahora la transición de color te
+dice qué estás mirando, y es consistente entre páginas.
 
-Geometría verificada con los datos reales: 15 layouts de instituciones × 4 tamaños de pantalla y
-2,057 de empresas × 2, **sin un solo desborde ni traslape**.
+#### Cómo funciona el zoom
+
+Los hijos **crecen desde la caja del padre** hasta llenar el lienzo. La animación interpola las
+coordenadas de cada celda en vez de aplicar un `transform` al grupo: así el texto no se deforma al
+escalar y no depende de cómo cada navegador resuelva `transform-box` en SVG. Al volver, el nivel
+de arriba se despliega desde la caja donde estabas.
+
+Llevan el cruce **completo**, sin recortar la cola, que es justo lo que hace interesante el zoom:
+el IMSS le pagó a **705 empresas distintas**. Se descartan solo los pares que redondean a cero
+—una celda de área cero hace dividir entre cero al squarify—, y hay una guarda en `worst()`.
+
+Geometría verificada con los datos reales: 15 layouts de nivel 0 × 4 tamaños de pantalla y 2,057
+de nivel 1 × 2, **sin un solo desborde ni traslape**.
 
 ### 3.10 Publicación del dataset
 
@@ -497,7 +512,37 @@ filas, 43,450 MDP.
 *Si alguien pide «gasto por mes» o «gasto antes de la veda», la respuesta es que la fuente no lo
 permite. Está dicho en el reporte, no escondido en el código.*
 
-### 3.19 Entorno: conda local
+### 3.19 Un error de JavaScript no falla ruidosamente
+
+**`tests/test_paginas.py` carga las cuatro páginas en Chromium**, captura errores de JavaScript y
+cuenta los elementos que cada sección debe renderizar.
+
+```powershell
+& "C:\Users\User\anaconda3\python.exe" -m pytest tests/test_paginas.py -q
+```
+
+Existe por un incidente que conviene no repetir. Se agregó la sección de ganadores y perdedores
+*arriba* de la de concentración, pero el alias `T` del diccionario de nombres se declaraba abajo.
+Un `const` no se puede leer antes de su línea, así que el guion moría con
+`Cannot access 'T' before initialization` y **todo lo posterior dejaba de ejecutarse**: barras de
+la serie, los dos treemaps, ganadores, concentración, buscador y diccionario. Seis secciones en
+blanco.
+
+Lo insidioso: la página respondía **HTTP 200**, el HTML estaba completo y las tres secciones de
+arriba se veían bien. **Ninguna verificación con expresiones regulares lo detectaba** —el marcado
+sí estaba— y así se publicó. Lo reportó el usuario, no las pruebas.
+
+Dos consecuencias, además del test:
+
+- **Todos los alias de datos se declaran al principio del guion** (`T`, `CONC`, `MED`, `CAMP`,
+  `GP`), donde agregar una sección nueva no puede romperlos. Era la segunda vez con `T`.
+- **Playwright ya estaba instalado**, en el env `base` y no en `pnt_analysis`. También trae un
+  `node.exe` en `playwright/driver/`, útil para `node --check` sobre el guion generado.
+
+*Regla: si se toca `reporte.py` o `zoom.py`, correr el test antes de publicar. Revisar el HTML no
+sustituye ejecutar el guion.*
+
+### 3.20 Entorno: conda local
 
 Se descartó Colab. Todo corre en local sobre **`pnt_analysis`**, environment **reutilizado** de
 otro proyecto del mismo dominio: Python 3.12.3, pandas 2.2.2, pyarrow 16.1, plotnine 0.13.6,
@@ -506,21 +551,26 @@ networkx, scipy, matplotlib, ipykernel. Se le agregaron `openpyxl`, `pyyaml` y `
 Intérprete: `C:\Users\User\anaconda3\envs\pnt_analysis\python.exe`. `conda` no está en el PATH.
 Correr siempre con `-X utf8`.
 
-### 3.20 Código
+### 3.21 Código
 
 `src/comsoc/`: `config`, `layouts`, `schema`, `ingest`, `clean`, `entities`, `ids`, `deflate`,
 `validate`, `export`, `reporte`, `zoom`, `build`.
 `config/`: `layouts.yaml`, `columnas.yaml`, `beneficiarios_map.csv`, `instituciones_map.csv`,
 `medios.csv`, `deflactor.csv`, `fechas_corruptas.yaml`.
 
-El sitio se regenera con tres comandos:
+El sitio se regenera con cuatro comandos, en este orden:
 
 ```powershell
-& $py -X utf8 -m comsoc.build       # Excel -> parquet
+$py = "C:\Users\User\anaconda3\envs\pnt_analysis\python.exe"
+& $py -X utf8 -m comsoc.build       # Excel -> parquet  (corre las 4 pruebas de aceptación)
 & $py -X utf8 -m comsoc.reporte     # parquet -> docs/index.html
-& $py -X utf8 -m comsoc.zoom        # parquet -> las dos vistas de pantalla completa
+& $py -X utf8 -m comsoc.zoom        # parquet -> las 3 vistas de pantalla completa
 & $py -X utf8 -c "from comsoc import export; export.publicar_descargas()"
+
+# y ANTES de publicar, con el intérprete `base` porque ahí vive Playwright:
+& "C:\Users\User\anaconda3\python.exe" -m pytest tests/test_paginas.py -q
 ```
+
 Más `pyproject.toml`, `.gitignore`, `README.md`, `notebooks/00_construir_dataset.ipynb`,
 `referencias/` y los 3 skills en `.claude/skills/`.
 
@@ -561,7 +611,7 @@ Todo lo viejo se **movió, nada se borró**: el proyecto en R está íntegro en 
 | 2 | **Verificar 2 RFC de Imagen** | `CSI0508264PA0` y `ISI050826EQ50`. Cinco minutos de consulta deciden 1,401 MDP y si la cifra de Imagen está inflada 39%. |
 | 3 | **Fase 5 — hojas `Ejercido`** | Declaradas en `layouts.yaml`, sin lector. Falta tabla puente institución↔clave (no traen clave, ~120 por año). Permitiría cruzar presupuesto autorizado contra pagado. |
 | 4 | **Cola larga de beneficiarios** | Catálogo `RFC → canónico` con 2012–2016 + 2024–2025, y `rapidfuzz` para el hueco 2017–2023. Hoy 4,955 nombres crudos → 4,719 canónicos: las reglas apenas tocan 236. |
-| 5 | **Tests** | `tests/` está vacío. Invariantes obvios: complementariedad de niveles, mapeo de columnas por generación, parser dual de fechas, unicidad de `renglon_id`. |
+| 5 | **Tests del pipeline** | Ya existe `tests/test_paginas.py` (ver §3.19). Faltan los del pipeline: complementariedad de niveles factura/renglón, mapeo de columnas por generación, parser dual de fechas, unicidad de `renglon_id`. |
 
 ---
 
