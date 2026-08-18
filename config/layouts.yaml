@@ -151,3 +151,22 @@ archivos:
       - {indice: 2, nombre: "Pólizas 33605 Ene-Dic",         tipo: polizas,  partida_grupo: "33605",       header_row: 13}
       - {indice: 3, nombre: "Ejercido 36101-36201 Ene-Dic",  tipo: ejercido, partida_grupo: "36101-36201", header_row: 10}
       - {indice: 4, nombre: "Pólizas 36101-36201 Ene-Dic",   tipo: polizas,  partida_grupo: "36101-36201", header_row: 13}
+
+  # AÑO PARCIAL: enero a mayo de 2026, corte 15-jun-2026. Mismo layout que 2025 (G3),
+  # con un typo de la fuente: la hoja de 33605 titula la columna "Proveedor RFCb".
+  # Se resuelve con un alias en columnas.yaml; no se toca el código.
+  # `meses_cubiertos` marca la cobertura parcial: NO es comparable contra un año completo.
+  - archivo: COMSOC_ejercido__enero-mayo_2026.xlsx
+    anio: 2026
+    generacion: G3
+    vintage: definitiva
+    parcial: true
+    meses_cubiertos: 5
+    control:
+      "33605":       {monto: 5907085.74,  iva: 250355.40}
+      "36101-36201": {monto: 78418338.38, iva: 12546934.13}
+    hojas:
+      - {indice: 1, nombre: "Ejercido 33605 Mayo",           tipo: ejercido, partida_grupo: "33605",       header_row: 10}
+      - {indice: 2, nombre: "Pólizas 33605 Mayo",            tipo: polizas,  partida_grupo: "33605",       header_row: 13}
+      - {indice: 3, nombre: "Ejercido 36101-36201 Mayo",     tipo: ejercido, partida_grupo: "36101-36201", header_row: 10}
+      - {indice: 4, nombre: "Pólizas 36101-36201 Mayo",      tipo: polizas,  partida_grupo: "36101-36201", header_row: 13}

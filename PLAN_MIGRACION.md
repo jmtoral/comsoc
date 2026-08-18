@@ -1,6 +1,6 @@
 # Plan de migración y actualización — COMSOC / Publicidad Oficial
 
-De un pipeline en R (2012–2023) a un proyecto en Python reproducible en Colab (2012–2025),
+De un pipeline en R (2012–2023) a un proyecto en Python reproducible (2012–2026),
 con un dataset único de **pólizas** armonizado a través de tres generaciones de formato.
 
 > **Estado (6-ago-2026)**
@@ -8,7 +8,8 @@ con un dataset único de **pólizas** armonizado a través de tres generaciones 
 > - ✅ **Fases 1–4** — pipeline **ejecutado y validado en local** (conda `pnt_analysis`).
 >   345,390 filas leídas, 196,480 renglones canónicos, 0 colisiones de id,
 >   **las tres pruebas de aceptación en verde**. Se descartó Colab.
->   Serie real completa 2012–2025, sin NaN, con el deflactor revisado de FUNDAR 2025.
+>   Serie real completa 2012–2025 más el parcial de 2026 (enero–mayo), sin NaN, con el
+>   deflactor revisado de FUNDAR 2025.
 > - ⬜ **Fase 5** — hojas `Ejercido` declaradas en `layouts.yaml`, aún no cargadas.
 > - ⬜ **Fase 3 (beneficiarios)** — falta el catálogo `RFC → canónico`.
 > - ⬜ **Fase 6–7** — análisis y entrega. **Es el siguiente paso.**
@@ -392,6 +393,6 @@ El punto 4 es oro: es la única cifra de control que la propia fuente te da. Ús
 | ¿Serie principal incluye 33605? | **Separada + total.** Su naturaleza es distinta (operación vs. campaña); mezclarlas confunde la lectura. |
 | ¿Base del deflactor? | **Rebasear a 2025** para publicación; conservar 2020=100 para comparar con tu trabajo previo. |
 | ¿2023 preliminar? | **Excluida por defecto**, disponible vía bandera `vintage`. |
-| ¿Extender antes de 2012? | No en la v1. Cierra 2012–2025 primero. |
+| ¿Extender antes de 2012? | No en la v1. Cierra 2012–2026 primero. |
 | ¿Scraper del portal? | Fase 8, opcional. Vale la pena si vas a actualizar cada trimestre; si es anual, la descarga manual está bien. |
 | ¿pandas o polars? | **pandas.** 250k filas no justifican el costo de reaprender la API. |

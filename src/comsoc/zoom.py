@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 
 from .config import DOCS_DIR, POLIZAS_PARQUET, asegurar_directorios
+from .layouts import MESES, cargar_parciales
 from .reporte import AUTOR, FAVICON, TOKENS, URL_COMSOC, alias_busqueda
 
 # El color sigue al TIPO DE ENTIDAD, no al nivel: institución = rosa, empresa =
@@ -140,9 +141,14 @@ def construir_datos(df: pd.DataFrame, vista: dict) -> dict:
     alias = [siglas.get(n, "") for n in nombres]
 
     anios = sorted(par.anio_fuente.unique().astype(int).tolist())
+    parciales = cargar_parciales()
     return {"nombres": nombres, "alias": alias, "filas": filas, "anios": anios,
             "meta": {"padres": int(b[padre].nunique()), "hijos": int(b[hijo].nunique()),
-                     "total": round(float(b.monto_real.sum() / 1e6), 1)}}
+                     "total": round(float(b.monto_real.sum() / 1e6), 1),
+                     "rango": f"{anios[0]}–{anios[-1]}",
+                     # Años que no cubren doce meses; ver layouts.cargar_parciales.
+                     "parciales": {str(y): {"meses": m, "hasta": MESES[m - 1]}
+                                   for y, m in parciales.items() if y in anios}}}
 
 
 ESTILO = TOKENS + """
@@ -269,6 +275,14 @@ GUION = r"""
 const D = __DATOS__, AUTOR = '__AUTOR__';
 const ETQ = __ETIQUETAS__;   /* textos de la vista: padre, hijo, encabezados */
 const NOM = D.nombres;
+
+/* Años que no cubren doce meses (2026 llega a mayo). Viene de layouts.yaml: aquí
+   no hay ningún año escrito, así que mover el corte no toca el guion. */
+const PARC = D.meta.parciales || {};
+const esParcial = a => !!PARC[String(a)];
+const etqAnioLargo = a => esParcial(a)
+  ? a+' (enero–'+PARC[String(a)].hasta+')' : String(a);
+
 const fmt  = n => n.toLocaleString('es-MX',{maximumFractionDigits:0});
 const fmt1 = n => n.toLocaleString('es-MX',{minimumFractionDigits:1,maximumFractionDigits:1});
 
@@ -459,7 +473,7 @@ function render(desde){
   const cells = squarify(datos,W,H);
 
   document.getElementById('volver').hidden = esRaiz;
-  const etqAnio = anioSel==='' ? '2012–2025' : anioSel;
+  const etqAnio = anioSel==='' ? D.meta.rango : etqAnioLargo(anioSel);
   document.getElementById('ruta').innerHTML = esRaiz
     ? '<span class="paso">'+ETQ.volver+'</span><span class="sep">·</span>'+
       '<span class="cifra">'+fmt(datos.length)+' '+ETQ.padre+' · '+fmt1(total)+' MDP · '+etqAnio+'</span>'+
@@ -537,8 +551,8 @@ cajaQ.addEventListener('keydown',e=>{
 
 /* ── controles ── */
 document.getElementById('anio').innerHTML =
-  '<option value="">Todos los años (2012–2025)</option>'+
-  D.anios.map(a=>'<option value="'+a+'">'+a+'</option>').join('');
+  '<option value="">Todos los años ('+D.meta.rango+')</option>'+
+  D.anios.map(a=>'<option value="'+a+'">'+etqAnioLargo(a)+'</option>').join('');
 document.getElementById('anio').addEventListener('change',e=>{
   anioSel=e.target.value;
   recuentaEmpresas();

@@ -62,8 +62,13 @@ def reconciliar_factura_vs_renglon(df: pd.DataFrame, tolerancia: float = 0.25) -
     return rec
 
 
-def verificar_control_2025(df: pd.DataFrame, tolerancia: float = 1.0) -> pd.DataFrame:
-    """Contrasta contra las cifras que el propio archivo de 2025 incrusta."""
+def verificar_cifras_de_control(df: pd.DataFrame, tolerancia: float = 1.0) -> pd.DataFrame:
+    """Contrasta contra los totales que los propios archivos incrustan.
+
+    Desde 2025 las hojas de pólizas traen un panel Monto/IVA/Monto+IVA antes del
+    encabezado. Se declaran en `layouts.yaml: control` y se verifican al peso: es la
+    única prueba que compara contra la fuente y no contra nosotros mismos.
+    """
     filas = []
     for anio, grupos in cargar_control().items():
         for grupo, esperado in grupos.items():
@@ -124,7 +129,7 @@ def reporte(df: pd.DataFrame) -> None:
     for titulo, tabla in (
         ("Factura vs renglón (G1)", reconciliar_factura_vs_renglon(df)),
         ("Totales históricos", verificar_totales_historicos(df)),
-        ("Cifra de control 2025", verificar_control_2025(df)),
+        ("Cifras de control de la fuente", verificar_cifras_de_control(df)),
     ):
         fallos = (~tabla["ok"]).sum()
         estado = "OK" if fallos == 0 else f"{fallos} FALLO(S)"

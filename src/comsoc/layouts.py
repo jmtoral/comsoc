@@ -83,6 +83,32 @@ def cargar_control() -> dict[int, dict[str, dict[str, float]]]:
     return {e["anio"]: e["control"] for e in cfg["archivos"] if "control" in e}
 
 
+def cargar_parciales() -> dict[int, int]:
+    """Años cuyo archivo no cubre los doce meses: {anio: meses_cubiertos}.
+
+    2026 llega hasta mayo. Un año parcial NO es comparable contra uno completo, y
+    quien lea la serie tiene que enterarse sin buscarlo. Vive en el YAML —y no en un
+    `if anio == 2026`— porque el año que viene el corte será otro.
+    """
+    with open(CONFIG_DIR / "layouts.yaml", encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh)
+    return {
+        e["anio"]: int(e.get("meses_cubiertos", 12))
+        for e in cfg["archivos"]
+        if e.get("parcial") and e.get("vintage") == "definitiva"
+    }
+
+
+MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
+         "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+
+
+def etiqueta_cobertura(anio: int) -> str:
+    """'2026 (enero–mayo)' si el año es parcial; '2026' si está completo."""
+    meses = cargar_parciales().get(anio)
+    return f"{anio} (enero–{MESES[meses - 1]})" if meses else str(anio)
+
+
 def detectar_header_row(ruta: Path, nombre_hoja: str) -> int:
     """Devuelve la fila (1-indexada) del encabezado real.
 

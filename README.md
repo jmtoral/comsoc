@@ -7,8 +7,11 @@
 - **¿En qué medios? → <https://jmtoral.github.io/comsoc/medios.html>**
   Lo mismo por familia de medio, con desglose por producto.
 
-Dataset unificado de **pólizas** de gasto en comunicación social, 2012–2025, a partir de los
+Dataset unificado de **pólizas** de gasto en comunicación social, 2012–2026, a partir de los
 Excel que publica la Secretaría Anticorrupción y Buen Gobierno (antes SFP).
+
+⚠ **2026 cubre sólo enero–mayo** (corte del archivo: 15 de junio de 2026). Va marcado en todas
+las gráficas y excluido de las comparaciones entre años; ver «Un año incompleto» más abajo.
 
 Análisis y elaboración: **Manuel Toral**.
 
@@ -108,7 +111,7 @@ trampas que rompen las cifras en silencio.
 | [`comsoc_polizas_csv.zip`](https://jmtoral.github.io/comsoc/datos/comsoc_polizas_csv.zip) | 15.7 MB | Excel, R, pandas, Stata |
 | [`comsoc_polizas.parquet`](https://jmtoral.github.io/comsoc/datos/comsoc_polizas.parquet) | 11.7 MB | Python o R, con tipos |
 
-196,480 renglones × 58 columnas, 2012–2025. El reporte incluye el diccionario completo de las 58
+197,040 renglones × 58 columnas, 2012–2026. El reporte incluye el diccionario completo de las 58
 columnas y un tercer botón que genera al vuelo el resumen por entidad y año (13,894 filas).
 
 Va en **ZIP y no en GZIP** por una razón práctica: Windows abre `.zip` con doble clic y `.gz` no,
@@ -195,10 +198,14 @@ Los archivos cambiaron de estructura dos veces. Todo lo específico de cada año
 | G1  | 2012–2023 | 2 | fila 6 | dos tipos de fila (factura / renglón) |
 | G1b | 2023 definitiva | 2 | fila 7 | bug: `Partida` sin el primer dígito |
 | G2  | 2024 | 4 | filas 8 y 9 | + `Ejercido`; vuelve el RFC; sin `Importe` |
-| G3  | 2025 | 4 | filas 10 y 13 | + `Núm.`, + panel de totales incrustado |
+| G3  | 2025–2026 | 4 | filas 10 y 13 | + `Núm.`, + panel de totales incrustado |
 
-Agregar 2026 = agregar un bloque a `config/layouts.yaml`. Si el encabezado se mueve otra vez,
+Agregar un año = agregar un bloque a `config/layouts.yaml`. Si el encabezado se mueve otra vez,
 `layouts.detectar_header_row()` lo encuentra solo y avisa de la discrepancia.
+
+El archivo de 2026 fue la primera prueba real de eso: llegó **sin cambiar de formato** y entró
+con un bloque en `layouts.yaml` más una línea en `columnas.yaml` —la fuente escribió
+`Proveedor RFCb` en una hoja— sin tocar una sola línea de código.
 
 ## Las tres trampas
 
@@ -206,11 +213,44 @@ Agregar 2026 = agregar un bloque a `config/layouts.yaml`. Si el encabezado se mu
    (`Importe`/`IVA`) y de *renglón* (`Cantidad`/`Costo`), mutuamente excluyentes.
    No son "facturado vs. pagado": son el mismo dinero a dos granularidades, y sumar la columna
    sin separarlas **duplica el gasto al ~200%**. `ingest` marca `nivel_registro` y el dataset
-   canónico conserva sólo `renglon` — el único nivel que sobrevive en 2024–2025.
+   canónico conserva sólo `renglon` — el único nivel que sobrevive desde 2024.
 2. **`Clase de Beneficiario` cambió de significado.** En G1 es un código (`P`/`R`); en G2 la
    columna homónima trae el tipo de medio. Se mapean a campos distintos
    (`clase_beneficiario` / `clase_medio`).
 3. **`IVA` cambió de nivel.** En G1 acompaña a `Importe` (factura); en G2/G3 a `Monto` (renglón).
+
+## Un año incompleto
+
+El archivo de **2026 cubre enero–mayo** (corte 15-jun-2026): 97 MDP nominales contra 4,346 de
+2025. Puesto sin advertencia junto a los años completos se lee como un desplome de 97.8%.
+**No lo es**, y hay dos verificaciones que lo descartan:
+
+- La hoja de `Ejercido` del propio archivo —la contabilidad de la Secretaría— reporta
+  exactamente lo mismo que suman nuestras pólizas. No estamos subcontando.
+- El gasto se registra al cierre del ejercicio: enero–mayo ha valido entre **0.3% y 13.1%** del
+  año en los catorce ejercicios completos. A la misma altura, 2025 llevaba 139 MDP.
+
+La cobertura se declara en `config/layouts.yaml` y nada más:
+
+```yaml
+  - archivo: COMSOC_ejercido__enero-mayo_2026.xlsx
+    anio: 2026
+    parcial: true
+    meses_cubiertos: 5
+```
+
+De ahí se deriva todo: la banda de aviso al inicio del reporte, la trama diagonal de la barra,
+el asterisco en los ejes, `2026 (enero–mayo)` en los selectores, y la exclusión del ciclo
+electoral y de la comparación entre sexenios. **Ningún año va escrito en el HTML ni en el
+JavaScript**: cuando salga el corte de agosto, se cambia `meses_cubiertos` y se regenera.
+
+Las dos exclusiones son aritmética, no estética. El ciclo electoral compara cada año contra el
+promedio de sus vecinos, y con 2026 de vecino 2025 aparecería como un pico inexistente. La
+comparación entre sexenios promedia participaciones año por año con igual peso, y 2026 —560
+renglones, una dependencia con el 91% del gasto— le daría a Sheinbaum el perfil de cinco meses.
+
+Los treemaps y el buscador **sí** incluyen 2026: ahí cada año se lee por separado. Eso sí, la
+vista abre en el último año **completo**.
 
 ## Validación
 
@@ -218,8 +258,9 @@ Agregar 2026 = agregar un bloque a `config/layouts.yaml`. Si el encabezado se mu
 
 - **Factura vs. renglón**: sus sumas deben coincidir dentro de 0.25% por año y partida.
 - **Totales históricos**: contra las cifras verificadas en `legacy/diagnostico/`.
-- **Cifra de control 2025**: el archivo incrusta su propio total
-  (`36101-36201`: 3,702,598,799.12 · `33605`: 46,359,752.98). Debe cuadrar exacto.
+- **Cifras de control de la fuente**: desde 2025 los archivos incrustan sus propios totales
+  (2025 — `36101-36201`: 3,702,598,799.12 · `33605`: 46,359,752.98; 2026 — 78,418,338.38 y
+  5,907,085.74). Deben cuadrar al peso.
 - **Contraste externo**: contra ARTICLE 19 / Política Colectiva, *Publicidad Oficial 2024*
   (2018–2024). Es la única verificación contra una fuente **independiente** de este pipeline;
   las tasas de crecimiento real coinciden al decimal. Ver [`referencias/`](referencias/README.md).
@@ -279,7 +320,7 @@ Dos claves duras que comparten RFC son la misma empresa aunque el nombre no se p
 | `ADI0809035M0` | `AGENCIA DIGITAL` · `AGENCIA DIGITAL, S.A.P.I DE C.V.` | 110.5 |
 | `AAR1007303W10` | `ARTM ASOCIACION DE REDES DE TELECO MUNICACIONES` · `ASOCIACIÓN DE TELECOMUNICACIONES INDEPENDIENTES DE MÉXICO` | 18.9 |
 
-⚠ **El RFC solo existe en 2012–2016 y 2024–2025.** En 2017–2023 la fuente no lo publica, así que
+⚠ **El RFC solo existe en 2012–2016 y 2024–2026.** En 2017–2023 la fuente no lo publica, así que
 esta capa no alcanza al hueco de siete años. Ver [HANDOFF.md](HANDOFF.md) §3.12 sobre el bug que
 hacía parecer que la cobertura era del 100%.
 
@@ -347,8 +388,8 @@ corrida y debe decirse en la nota al pie de cualquier gráfica que los incluya.
 ## Pendientes conocidos
 
 - **Reconciliación de beneficiarios**: el catálogo `RFC → canónico` (Fase 3) aún no está.
-  Hay RFC en 2012–2016 y 2024–2025; el hueco 2017–2023 se puentea por nombre.
-- **Hojas `Ejercido`** (2024–2025): declaradas en `layouts.yaml` pero aún no cargadas
+  Hay RFC en 2012–2016 y 2024–2026; el hueco 2017–2023 se puentea por nombre.
+- **Hojas `Ejercido`** (2024–2026): declaradas en `layouts.yaml` pero aún no cargadas
   a `comsoc_ejercido.parquet` (Fase 5).
 - El código Python **no se ha ejecutado en esta máquina** (no hay intérprete instalado);
   se escribió contra la estructura real de los archivos, verificada con R. La primera

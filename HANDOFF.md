@@ -1,4 +1,4 @@
-# Handoff — 6 de agosto de 2026
+# Handoff — 17 de agosto de 2026
 
 Estado del proyecto COMSOC: migración del pipeline en R a Python, dataset validado y reporte
 publicable. Punto de entrada para retomar en frío.
@@ -26,24 +26,25 @@ Un proyecto en R que producía una serie 2012–2023 del gasto federal en public
 ### ✅ El pipeline corre y pasa las cuatro pruebas de aceptación
 
 ```
-total crudo                345,390 filas   (196,480 renglón / 148,910 factura)
+total crudo                345,950 filas   (197,040 renglón / 148,910 factura)
 partida reparada (2023)     15,892 valores
 fechas fuera de rango          107 filas   (marcadas, no corregidas)
-pólizas                    104,203          1.89 renglones por póliza
+pólizas                    104,735          1.88 renglones por póliza
 renglon_id colisiones            0
 warnings                         0
 
-Factura vs renglón (G1)     OK   26 combinaciones año × vintage × partida
-Totales históricos          OK   máxima desviación 0.0016%
-Cifra de control 2025       OK   cuadra al centavo
-Contraste ARTICLE 19        OK   2018-2024, tasas idénticas al decimal
+Factura vs renglón (G1)          OK   26 combinaciones año × vintage × partida
+Totales históricos               OK   máxima desviación 0.0016%
+Cifras de control de la fuente   OK   2025 y 2026, los cuatro paneles al centavo
+Contraste ARTICLE 19             OK   2018-2024, tasas idénticas al decimal
 ```
 
 La ingesta reproduce **exactamente** los conteos verificados en R, hoja por hoja
 (2012 hoja 1: 29,908 filas = 16,029 renglón + 13,879 factura; 2025: 8,831 renglones).
 Los totales coinciden con `legacy/clean_data/`: la migración no duplicó ni perdió dinero.
+**Agregar 2026 no movió ni un peso de 2012–2023**, que es justo lo que esa prueba vigila.
 
-Salidas: `data/processed/comsoc_polizas.parquet` (196,480 filas) y `docs/index.html`.
+Salidas: `data/processed/comsoc_polizas.parquet` (197,040 filas) y `docs/index.html`.
 
 Para reconstruir todo desde cero:
 
@@ -76,6 +77,9 @@ Tres cosas que son el punto de partida del análisis:
 
 ⚠ El deflactor de 2025 es **estimado**. Debe decirse en cualquier gráfica que lo incluya.
 
+**2026 va aparte, y no es un renglón más de esa tabla:** 97 MDP nominales / 73.1 reales,
+560 renglones, de **enero a mayo**. Ver §3.20.
+
 ---
 
 ## 3. Qué se construyó
@@ -87,7 +91,13 @@ Tres cosas que son el punto de partida del análisis:
 | G1  | 2012–2023 prelim | 2 | fila 6 | 26–37 (varía) |
 | G1b | 2023 definitiva | 2 | fila 7 | 27 |
 | G2  | 2024 | 4 | filas 8 y 9 | 23 y 22 |
-| G3  | 2025 | 4 | filas 10 y 13 | 8 y 25 |
+| G3  | 2025 y 2026 | 4 | filas 10 y 13 | 8 y 25 |
+
+**2026 no estrenó generación.** Es el primer archivo que llega sin cambiar de formato: mismas
+cuatro hojas, mismos encabezados en 10 y 13, mismas columnas. La única diferencia es un typo
+de la fuente —la hoja de 33605 titula la columna `Proveedor RFCb`— y se resuelve con un alias
+más en `columnas.yaml`, sin tocar el código. Es la primera vez que el diseño *«todo lo
+específico de un año vive en config/»* se pone a prueba con un archivo nuevo, y aguantó.
 
 **El duplicado de 2023, resuelto con evidencia interna del archivo:**
 
@@ -99,7 +109,7 @@ Tres cosas que son el punto de partida del análisis:
 La definitiva es canónica. La preliminar se conserva con `vintage='preliminar'`: el +43% de
 registros que aparecen después del corte es una medida directa de opacidad, no basura.
 
-**Las pestañas nuevas no son pólizas.** En 2024–2025 dos de las cuatro hojas son `Ejercido`:
+**Las pestañas nuevas no son pólizas.** En 2024–2026 dos de las cuatro hojas son `Ejercido`:
 presupuesto por institución. Tabla aparte, aún sin cargar (pendiente 2).
 
 ### 3.2 El hallazgo principal: las "dos filas por póliza"
@@ -120,7 +130,7 @@ El pipeline en R lo resolvía **por accidente**, con `filter(!is.na(cantidad))`.
   Se repara en `clean.reparar_partida`.
 - **Reversas** (monto negativo): marginales (≤1.23% en 2012, ~0% desde 2016). Se suman con signo.
 - **9,036 filas exactamente duplicadas.** No se deduplican a ciegas; se marcan con `n_identicas`.
-- **Cifra de control gratuita**: el archivo de 2025 incrusta sus propios totales.
+- **Cifra de control gratuita**: los archivos de 2025 y 2026 incrustan sus propios totales.
 
 ### 3.4 Identificadores (`ids.py`)
 
@@ -542,7 +552,71 @@ Dos consecuencias, además del test:
 *Regla: si se toca `reporte.py` o `zoom.py`, correr el test antes de publicar. Revisar el HTML no
 sustituye ejecutar el guion.*
 
-### 3.20 Entorno: conda local
+### 3.20 Un año parcial en una serie anual (2026)
+
+El archivo de 2026 cubre **enero a mayo**, corte 15-jun-2026. Es el primer año incompleto de la
+serie, y el problema no es cargarlo sino **impedir que se lea mal**.
+
+#### El dato: 97 MDP no es un desplome
+
+| | 2025 completo | 2026 ene–may |
+|---|---:|---:|
+| nominal | 4,346 MDP | **97 MDP** |
+| real 2020 | 3,399 MDP | **73.1 MDP** |
+| renglones | 9,898 | **560** |
+| instituciones | 112 | **51** |
+| empresas | 449 | **78** |
+
+Puesto junto sin advertencia, 2026 se lee como una caída de 97.8%. **No lo es.** Dos
+verificaciones lo descartan:
+
+1. **La hoja de `Ejercido` del propio archivo** —la contabilidad de la Secretaría, no la
+   nuestra— reporta 6.2 MDP en 33605 y 91.0 en 36101-36201. Nuestras pólizas suman exactamente
+   eso. No estamos subcontando: es lo que la fuente dice que se ejerció.
+2. **El gasto se registra al cierre.** Enero–mayo ha valido entre **0.3% y 13.1%** del año en
+   los catorce ejercicios completos. A la misma altura, 2025 llevaba 139 MDP y 2022 llevaba 88.
+   Los 97 de 2026 caen dentro del rango normal de un arranque de año.
+
+Lo que sí es notable: de los 91 MDP de 36101-36201, **88.2 son de una sola entidad**, el Grupo
+Aeroportuario Olmeca-Maya-Mexica (GAFSACOMM) — 91% del gasto reportado del año. Y contra un
+presupuesto modificado de 3,644 MDP, lo ejercido es 2.6%.
+
+#### Cómo se marca, y dónde se excluye
+
+`layouts.yaml` declara `parcial: true` y `meses_cubiertos: 5`; `layouts.cargar_parciales()` lo
+expone y el resto se deriva. **Ningún año va escrito en el HTML ni en el JavaScript**: cuando el
+corte se mueva a agosto, basta editar el YAML.
+
+| Dónde | Qué pasa con 2026 |
+|---|---|
+| aviso al inicio del reporte | banda amarilla, arriba del pliegue, antes de cualquier cifra |
+| gráfica de barras | **trama diagonal** (`<pattern>`, no opacidad) + `'26*` + `ene–may` bajo el eje |
+| líneas de medios | banda amarilla sobre la columna del año + `'26*` |
+| selectores y chips | `2026 (enero–mayo)`; el chip va con borde punteado y asterisco |
+| tooltips | «solo enero–mayo; no comparable con un año completo» |
+| **ciclo electoral** | **excluido** |
+| **ganadores y perdedores por sexenio** | **excluido** |
+| treemaps, buscador, concentración | incluido: ahí cada año se lee por separado |
+
+Las dos exclusiones no son estética, son aritmética:
+
+- El **ciclo electoral** compara cada año contra el promedio de sus dos vecinos. Con 2026 como
+  vecino, 2025 se compararía contra `(2024 + 73.1)/2` y aparecería como un pico electoral que
+  no existe.
+- **Ganadores y perdedores** promedia la participación año por año, con cada año pesando igual.
+  2026 —560 renglones, 78 empresas, una dependencia al 91%— le daría a Sheinbaum el perfil de
+  cinco meses de GAFSACOMM. Sheinbaum sigue siendo `[2025, 2025]`.
+
+Los treemaps y el treemap de campañas **abren en el último año completo**, no en el último. Un
+año de cinco meses como vista por omisión invita a leerlo como si fuera entero; 2026 queda a un
+clic y marcado. Esto lo atrapó `tests/test_paginas.py`: el treemap de campañas abría en 2026 con
+8 cuadros contra los ~300 de un año entero, y la prueba falló por sección vacía.
+
+⚠ **Cuando llegue el archivo definitivo de 2026**, no se sustituye: se da de alta como
+`vintage: definitiva` y el parcial pasa a `preliminar`, igual que las dos ediciones de 2023. La
+diferencia entre el corte de mayo y el definitivo es una medida de opacidad, no basura.
+
+### 3.21 Entorno: conda local
 
 Se descartó Colab. Todo corre en local sobre **`pnt_analysis`**, environment **reutilizado** de
 otro proyecto del mismo dominio: Python 3.12.3, pandas 2.2.2, pyarrow 16.1, plotnine 0.13.6,
@@ -551,7 +625,7 @@ networkx, scipy, matplotlib, ipykernel. Se le agregaron `openpyxl`, `pyyaml` y `
 Intérprete: `C:\Users\User\anaconda3\envs\pnt_analysis\python.exe`. `conda` no está en el PATH.
 Correr siempre con `-X utf8`.
 
-### 3.21 Código
+### 3.22 Código
 
 `src/comsoc/`: `config`, `layouts`, `schema`, `ingest`, `clean`, `entities`, `ids`, `deflate`,
 `validate`, `export`, `reporte`, `zoom`, `build`.
@@ -609,8 +683,8 @@ Todo lo viejo se **movió, nada se borró**: el proyecto en R está íntegro en 
 |---|---|---|
 | 1 | **Fase 6 — análisis** | Hecho: serie, medios en el tiempo, campañas, concentración, ganadores/perdedores y **ciclo electoral**. Faltan la **red institución↔beneficiario** (proveedores cautivos) y las **anomalías de precio** (mismo producto y mes con costo unitario dispar, más Benford). Ver el skill `comsoc-analisis`. |
 | 2 | **Verificar 2 RFC de Imagen** | `CSI0508264PA0` y `ISI050826EQ50`. Cinco minutos de consulta deciden 1,401 MDP y si la cifra de Imagen está inflada 39%. |
-| 3 | **Fase 5 — hojas `Ejercido`** | Declaradas en `layouts.yaml`, sin lector. Falta tabla puente institución↔clave (no traen clave, ~120 por año). Permitiría cruzar presupuesto autorizado contra pagado. |
-| 4 | **Cola larga de beneficiarios** | Catálogo `RFC → canónico` con 2012–2016 + 2024–2025, y `rapidfuzz` para el hueco 2017–2023. Hoy 4,955 nombres crudos → 4,719 canónicos: las reglas apenas tocan 236. |
+| 3 | **Fase 5 — hojas `Ejercido`** | Declaradas en `layouts.yaml`, sin lector. Falta tabla puente institución↔clave (no traen clave, ~120 por año). Permitiría cruzar presupuesto autorizado contra pagado. **Subió de prioridad con 2026:** esas hojas ya sirvieron para confirmar a mano que las pólizas del año parcial no subcuentan (§3.20), y traen el presupuesto modificado —3,644 MDP contra 91 ejercidos— que es el denominador que le falta al año en curso. |
+| 4 | **Cola larga de beneficiarios** | Catálogo `RFC → canónico` con 2012–2016 + 2024–2026, y `rapidfuzz` para el hueco 2017–2023. Hoy 4,955 nombres crudos → 4,719 canónicos: las reglas apenas tocan 236. |
 | 5 | **Tests del pipeline** | Ya existe `tests/test_paginas.py` (ver §3.19). Faltan los del pipeline: complementariedad de niveles factura/renglón, mapeo de columnas por generación, parser dual de fechas, unicidad de `renglon_id`. |
 
 ---
@@ -620,7 +694,7 @@ Todo lo viejo se **movió, nada se borró**: el proyecto en R está íntegro en 
 | Decisión | Resuelto |
 |---|---|
 | 2023 duplicado | Definitiva canónica; preliminar conservada como `vintage` |
-| Nivel de registro | Renglón (único que sobrevive en 2024–2025) |
+| Nivel de registro | Renglón (único que sobrevive desde 2024) |
 | Reversas | Se suman con signo |
 | Duplicados exactos | No se deduplican; se marcan con `n_identicas` |
 | Serie principal | 33605 separada de 36101-36201, más el total |
@@ -633,5 +707,7 @@ Todo lo viejo se **movió, nada se borró**: el proyecto en R está íntegro en 
 ## 7. Abiertas
 
 - ¿Extender la serie antes de 2012? (Recomendación: no en la v1.)
+- **¿Republicar cuando salga el corte de agosto de 2026?** El pipeline ya lo absorbe editando
+  `meses_cubiertos` en `layouts.yaml`; la pregunta es editorial, no técnica.
 - ¿Scraper del portal para no depender de descargas manuales? (Vale la pena solo si actualizas por
   trimestre; si es anual, la descarga manual está bien.)

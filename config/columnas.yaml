@@ -75,6 +75,7 @@ G3:
   descripcion del producto:   producto_desc
   clase de proveedor:         clase_medio
   proveedor rfc:              rfc_beneficiario
+  proveedor rfcb:             rfc_beneficiario     # typo de la fuente en 2026, hoja 33605
   nombre del proveedor:       beneficiario
   clave de campana:           campana_clave
   nombre de campana:          campana_nombre

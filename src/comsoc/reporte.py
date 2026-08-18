@@ -31,6 +31,7 @@ import numpy as np
 import pandas as pd
 
 from .config import DOCS_DIR, POLIZAS_PARQUET, asegurar_directorios
+from .layouts import MESES, cargar_parciales
 
 # Entidades con cuadro propio por año, y cortes para partir la cola.
 #
@@ -124,9 +125,19 @@ def construir_datos(df: pd.DataFrame) -> dict:
         return "EPN" if y <= 2018 else ("AMLO" if y <= 2024 else "Sheinbaum")
 
     anios_serie = [int(y) for y in a.index]
+
+    # Años que no cubren doce meses. 2026 llega a mayo: 97 MDP contra 4,346 de 2025.
+    # Puesto junto sin marca se lee como desplome, y no lo es —el rango histórico de
+    # enero-mayo va de 0.3% a 13.1% del año, y 2025 llevaba 139 MDP a la misma altura.
+    # Se marca en la serie y se EXCLUYE de todo cálculo que compare años entre sí.
+    parciales = cargar_parciales()
+    anios_completos = [y for y in anios_serie if y not in parciales]
+
     serie = [{"anio": int(y), "real": round(float(r.real / 1e6), 1),
               "nominal": round(float(r.nominal / 1e6), 1), "obs": int(r.obs),
-              "polizas": int(r.polizas), "sexenio": sexenio(y)} for y, r in a.iterrows()]
+              "polizas": int(r.polizas), "sexenio": sexenio(y),
+              **({"p": parciales[int(y)]} if int(y) in parciales else {})}
+             for y, r in a.iterrows()]
 
     # Tabla buscable: un renglón por entidad y año, las dos dimensiones juntas.
     # Los nombres van en un diccionario aparte porque se repiten catorce veces;
@@ -191,9 +202,11 @@ def construir_datos(df: pd.DataFrame) -> dict:
     # años contiguos controla ese desplazamiento.
     ELECCIONES = {2012: "presidencial", 2015: "intermedia", 2018: "presidencial",
                   2021: "intermedia", 2024: "presidencial"}
-    real = {int(y): float(v) for y, v in (a.real / 1e6).items()}
+    # Sobre años completos: si 2026 (5 meses) entrara como vecino, 2025 se compararía
+    # contra un promedio hundido y aparecería como un pico electoral inexistente.
+    real = {int(y): float(v) for y, v in (a.real / 1e6).items() if int(y) in anios_completos}
     ciclo = []
-    for y in anios_serie:
+    for y in anios_completos:
         prev, sig = real.get(y - 1), real.get(y + 1)
         vs = None
         if prev is not None and sig is not None:
@@ -208,10 +221,13 @@ def construir_datos(df: pd.DataFrame) -> dict:
     # Tres periodos. Sheinbaum solo tiene 2025 completo en los datos: 2024 se
     # atribuye entero a AMLO porque nueve de sus doce meses corrieron bajo su
     # gobierno. La asimetría se advierte en la página.
+    # Sobre años COMPLETOS: el promedio de participación pondera cada año igual, así
+    # que 2026 —560 renglones, 78 empresas— pesaría lo mismo que un año de 15,000 y
+    # le daría a Sheinbaum el perfil de cinco meses de una sola dependencia.
     SEXENIOS = [
-        ("epn", "Peña Nieto", [a for a in anios_serie if 2013 <= a <= 2018]),
-        ("amlo", "López Obrador", [a for a in anios_serie if 2019 <= a <= 2024]),
-        ("sheinbaum", "Sheinbaum", [a for a in anios_serie if a >= 2025]),
+        ("epn", "Peña Nieto", [a for a in anios_completos if 2013 <= a <= 2018]),
+        ("amlo", "López Obrador", [a for a in anios_completos if 2019 <= a <= 2024]),
+        ("sheinbaum", "Sheinbaum", [a for a in anios_completos if a >= 2025]),
     ]
     SEXENIOS = [(k, e, ys) for k, e, ys in SEXENIOS if ys]
 
@@ -261,7 +277,14 @@ def construir_datos(df: pd.DataFrame) -> dict:
             "ciclo": ciclo,
             "meta": {"renglones": int(len(b)), "columnas": int(len(df.columns)),
                      "polizas": int(b.poliza_id.nunique()),
-                     "total_real": round(float(b.monto_real.sum() / 1e6), 1)}}
+                     "total_real": round(float(b.monto_real.sum() / 1e6), 1),
+                     "anio_ini": anios_serie[0], "anio_fin": anios_serie[-1],
+                     "anio_fin_completo": anios_completos[-1],
+                     "n_completos": len(anios_completos),
+                     # {"2026": {"meses": 5, "hasta": "mayo"}} — la página arma sus
+                     # propias etiquetas con esto; ningún año va escrito en el HTML.
+                     "parciales": {str(y): {"meses": m, "hasta": MESES[m - 1]}
+                                   for y, m in parciales.items()}}}
 
 
 # ─────────────────────────────────────────────────────────────── plantilla
@@ -333,6 +356,11 @@ svg{display:block;width:100%;height:auto}
 .axis-yr{fill:var(--ink-2);font-family:var(--font-mono);font-size:12px}
 .bar{fill:var(--accent);cursor:pointer;transition:fill .12s ease}
 .bar:hover,.bar.sel{fill:var(--accent-deep)}
+/* Año incompleto: rayado en vez de macizo. Es la única codificación que sobrevive
+   a la impresión en blanco y negro y a no leer el pie de la gráfica. */
+.bar.parcial{fill:url(#rayado)}
+.bar.parcial:hover,.bar.parcial.sel{fill:url(#rayado-sel)}
+.axis-yr.parcial{fill:var(--ink-3)}
 .bar-val{fill:var(--ink);font-family:var(--font-display);font-size:12.5px;font-weight:700;
   text-anchor:middle;font-variant-numeric:tabular-nums;pointer-events:none}
 .era-rule{stroke:var(--line-2);stroke-width:1.5}
@@ -346,6 +374,8 @@ svg{display:block;width:100%;height:auto}
 .yr:hover{border-color:var(--accent);color:var(--ink)}
 .yr[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);
   color:#FFFCF4;font-weight:700}
+.yr.parcial{border-style:dashed}
+.yr.parcial::after{content:"*"}
 
 .maps{display:grid;grid-template-columns:1fr;gap:22px}
 .map-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:12px}
@@ -375,6 +405,7 @@ svg{display:block;width:100%;height:auto}
   font-size:12.5px;line-height:1.45;max-width:290px;box-shadow:0 6px 20px rgba(51,16,24,.24)}
 #tip b{font-family:var(--font-display);font-size:13.5px;display:block;margin-bottom:2px}
 #tip .n{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+#tip .tip-parc{color:var(--soft-yellow);font-size:11.5px;font-style:italic}
 
 details{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
 summary{cursor:pointer;font-family:var(--font-display);font-size:13px;font-weight:600;
@@ -411,6 +442,10 @@ td:first-child{font-family:var(--font-body);color:var(--ink)}
 .aviso .pill{vertical-align:1px}
 .aviso.corto{margin:0 0 14px;padding:10px 14px;font-size:13.5px;border-left-color:var(--c3)}
 .aviso.corto[hidden]{display:none}
+/* Cobertura parcial del año en curso. Amarillo suave y no rosa: es una advertencia
+   de lectura, no un dato, y no debe competir con las cifras. Va arriba del todo. */
+.aviso.cobertura{background:var(--soft-yellow);border-color:var(--line-2);
+  border-left:4px solid var(--accent-deep);max-width:64ch;margin:18px 0 22px}
 #tblBusca th{cursor:pointer;user-select:none;white-space:nowrap}
 #tblBusca th:hover{color:var(--accent-deep)}
 #tblBusca th[data-dir]::after{content:" ▾";color:var(--accent)}
@@ -497,6 +532,7 @@ td:first-child{font-family:var(--font-body);color:var(--ink)}
 /* ── ciclo electoral ── */
 .eje-cero{stroke:var(--ink-3);stroke-width:1.2}
 .barra-ciclo{cursor:default}
+.banda-parcial{fill:var(--soft-yellow);opacity:.5;pointer-events:none}
 .voto{fill:var(--accent-deep);font-family:var(--font-display);font-size:10.5px;font-weight:700;
   text-transform:uppercase;letter-spacing:.06em;text-anchor:middle}
 .resumen-ciclo{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;
@@ -573,12 +609,13 @@ td:first-child{font-family:var(--font-body);color:var(--ink)}
 CUERPO = """
 <div class="wrap">
   <p class="eyebrow">Sistema COMSOC &middot; Gobierno federal de M&eacute;xico</p>
-  <h1>Publicidad oficial,<br><em>2012&ndash;2025</em></h1>
+  <h1>Publicidad oficial,<br><em>__RANGO__</em></h1>
   <p class="lede">
-    Catorce ejercicios fiscales de gasto federal en comunicaci&oacute;n social, reconstruidos
+    __COBERTURA__ reconstruidos
     desde el detalle de p&oacute;lizas: __RENGLONES__ renglones de __POLIZAS__ p&oacute;lizas.
     Todas las cifras en <b>millones de pesos constantes de 2020</b>.
   </p>
+  __AVISO__
   <p class="byline">An&aacute;lisis y elaboraci&oacute;n de <b>__AUTOR__</b></p>
 
   <div class="stats" id="stats"></div>
@@ -589,7 +626,7 @@ CUERPO = """
       Da clic en una barra para cambiar el a&ntilde;o de los treemaps de abajo.</p>
     <div class="card">
       <div class="chart-scroll"><svg id="bars" viewBox="0 0 1000 400" role="img"
-        aria-label="Gasto federal en publicidad oficial por a&ntilde;o, 2012 a 2025, en millones de pesos de 2020"></svg></div>
+        aria-label="Gasto federal en publicidad oficial por a&ntilde;o, __RANGO__, en millones de pesos de 2020"></svg></div>
       <details>
         <summary>Ver los datos</summary>
         <div class="tbl-scroll"><table id="tblSerie"></table></div>
@@ -720,7 +757,7 @@ CUERPO = """
       </div>
       <div class="chart-scroll">
         <svg id="mLineas" viewBox="0 0 1000 430" role="img"
-             aria-label="Gasto por familia de medio, 2012 a 2025"></svg>
+             aria-label="Gasto por familia de medio, __RANGO__"></svg>
       </div>
       <p class="nota-pie" id="mNota"></p>
       <details>
@@ -893,8 +930,10 @@ CUERPO = """
         homologaci&oacute;n heredada agrupa 58 razones sociales y 50 RFC distintos; solo unos
         2,408 de sus 3,936 MDP son inequ&iacute;vocamente Grupo Imagen. Dos empresas que valen
         1,401 MDP siguen sin verificar.</li>
-      <li><b>2025 usa un deflactor estimado.</b> La serie del deflactor impl&iacute;cito del PIB
-        (base 2020=100) marca 2025 y 2026 como estimados; la cifra real de 2025 puede moverse.</li>
+      __AVISO_CORTO__
+      <li><b>Los dos &uacute;ltimos a&ntilde;os usan un deflactor estimado.</b> La serie del
+        deflactor impl&iacute;cito del PIB (base 2020=100) marca 2025 y 2026 como estimados;
+        esas cifras reales pueden moverse.</li>
       <li><b>Partidas incluidas:</b> 36101 y 36201 (difusi&oacute;n de mensajes gubernamentales y
         comerciales) m&aacute;s 33605 (informaci&oacute;n en medios masivos por operaci&oacute;n).
         33605 es gasto operativo y pesa poco: entre 0.9% y 2.2% del total anual.</li>
@@ -957,16 +996,35 @@ const css  = v => getComputedStyle(document.documentElement).getPropertyValue(v)
 const S='http://www.w3.org/2000/svg';
 const el=(t,a={})=>{const e=document.createElementNS(S,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
 const serie = DATA.serie;
-let anioSel = serie[serie.length-1].anio;
+const META  = DATA.meta;
+
+/* Años incompletos. `parciales` viene de layouts.yaml: {"2026":{meses:5,hasta:"mayo"}}.
+   Ningún año va escrito en el guion; cuando el corte se mueva a agosto, esto sigue bien. */
+const PARC     = META.parciales || {};
+const esParcial= a => !!PARC[String(a)];
+const mesesDe  = a => (PARC[String(a)]||{}).hasta || '';
+/* Con asterisco en los ejes y los selectores, donde no cabe la explicación. */
+const etqAnio  = a => esParcial(a) ? a+'*' : String(a);
+/* Donde sí cabe: los <select>, que es donde el usuario elige a ciegas. */
+const etqAnioLargo = a => esParcial(a) ? a+' (enero–'+mesesDe(a)+')' : String(a);
+const notaParc = a => esParcial(a)
+  ? '<br><span class="tip-parc">solo enero–'+mesesDe(a)+'; no comparable con un año completo</span>' : '';
+const RANGO    = META.anio_ini+'–'+META.anio_fin;
+
+/* El año por omisión es el último COMPLETO: abrir en un año de cinco meses invita
+   a leerlo como si fuera uno entero. El de 2026 sigue a un clic, marcado. */
+let anioSel = META.anio_fin_completo;
 
 (function(){
   const y18=serie.find(d=>d.anio===2018).real, y19=serie.find(d=>d.anio===2019).real;
-  const y23=serie.find(d=>d.anio===2023).real, y25=serie.find(d=>d.anio===2025).real;
+  const y23=serie.find(d=>d.anio===2023).real;
+  const yUlt=serie.find(d=>d.anio===META.anio_fin_completo);
   const items=[
-    {k:fmt(DATA.meta.total_real), l:'Gasto federal acumulado 2012–2025', u:'millones de pesos de 2020'},
+    {k:fmt(META.total_real), l:'Gasto federal acumulado '+RANGO, u:'millones de pesos de 2020'},
     {k:((y19/y18-1)*100).toFixed(1)+'%', l:'Cayó el gasto de 2018 a 2019', u:'medido en pesos de 2020'},
-    {k:'+'+((y25/y23-1)*100).toFixed(1)+'%', l:'Subió el gasto de 2023 a 2025', u:'medido en pesos de 2020'},
-    {k:fmt(DATA.meta.polizas), l:'Pólizas analizadas', u:fmt(DATA.meta.renglones)+' renglones'}];
+    {k:'+'+((yUlt.real/y23-1)*100).toFixed(1)+'%',
+     l:'Subió el gasto de 2023 a '+META.anio_fin_completo, u:'medido en pesos de 2020'},
+    {k:fmt(META.polizas), l:'Pólizas analizadas', u:fmt(META.renglones)+' renglones'}];
   document.getElementById('stats').innerHTML = items.map(d=>
     '<div class="tile"><div class="k">'+d.k+'</div><div class="l">'+d.l+'</div><div class="u">'+d.u+'</div></div>').join('');
 })();
@@ -982,9 +1040,24 @@ function showTip(e,html){
 }
 const hideTip=()=>tip.style.opacity=0;
 
+/* Rayado diagonal para el año incompleto. Va como <pattern> y no como opacidad
+   porque la opacidad se lee como "menos gasto", que es justo el malentendido. */
+function defsRayado(){
+  const d=el('defs');
+  [['rayado',css('--accent')],['rayado-sel',css('--accent-deep')]].forEach(([id,color])=>{
+    const p=el('pattern',{id:id,width:7,height:7,patternUnits:'userSpaceOnUse',
+                          patternTransform:'rotate(45)'});
+    p.appendChild(el('rect',{width:7,height:7,fill:css('--bg')}));
+    p.appendChild(el('rect',{width:3.6,height:7,fill:color}));
+    d.appendChild(p);
+  });
+  return d;
+}
+
 const W=1000,H=400,ML=64,MR=16,MT=54,MB=52;
 function drawBars(){
   const svg=document.getElementById('bars'); svg.textContent='';
+  svg.appendChild(defsRayado());
   const iw=W-ML-MR, ih=H-MT-MB;
   const max=Math.max.apply(null,serie.map(d=>d.real))*1.12;
   const bw=iw/serie.length, x=i=>ML+i*bw, y=v=>MT+ih-(v/max)*ih;
@@ -995,7 +1068,7 @@ function drawBars(){
     t.textContent=fmt(v); svg.appendChild(t);
   }
   [{n:'Peña Nieto',a:2012,b:2018},{n:'López Obrador',a:2019,b:2024},
-   {n:'Sheinbaum',a:2025,b:2025}].forEach(er=>{
+   {n:'Sheinbaum',a:2025,b:META.anio_fin}].forEach(er=>{
     const i0=serie.findIndex(d=>d.anio===er.a), i1=serie.findIndex(d=>d.anio===er.b);
     if(i0<0||i1<0) return;
     const x0=x(i0)+4, x1=x(i1)+bw-4;
@@ -1006,19 +1079,27 @@ function drawBars(){
   serie.forEach((d,i)=>{
     const h=(d.real/max)*ih, yy=y(d.real);
     const r=el('rect',{x:x(i)+3,y:yy,width:bw-6,height:Math.max(h,1),rx:4,
-      class:'bar'+(d.anio===anioSel?' sel':''),tabindex:0,role:'button',
-      'aria-label':d.anio+': '+fmt1(d.real)+' millones de pesos de 2020'});
+      class:'bar'+(d.anio===anioSel?' sel':'')+(esParcial(d.anio)?' parcial':''),
+      tabindex:0,role:'button',
+      'aria-label':d.anio+(esParcial(d.anio)?', solo de enero a '+mesesDe(d.anio):'')+
+        ': '+fmt1(d.real)+' millones de pesos de 2020'});
     const info=e=>showTip(e,'<b>'+d.anio+' · '+d.sexenio+'</b><span class="n">'+fmt1(d.real)+
       '</span> MDP de 2020<br><span class="n">'+fmt1(d.nominal)+'</span> MDP nominales<br><span class="n">'+
-      fmt(d.polizas)+'</span> pólizas · <span class="n">'+fmt(d.obs)+'</span> renglones');
+      fmt(d.polizas)+'</span> pólizas · <span class="n">'+fmt(d.obs)+'</span> renglones'+notaParc(d.anio));
     r.addEventListener('mousemove',info);
     r.addEventListener('mouseleave',hideTip);
     r.addEventListener('click',()=>selAnio(d.anio));
     r.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selAnio(d.anio);}});
     svg.appendChild(r);
     const v=el('text',{x:x(i)+bw/2,y:yy-8,class:'bar-val'}); v.textContent=fmt(d.real); svg.appendChild(v);
-    const a=el('text',{x:x(i)+bw/2,y:H-MB+22,class:'axis-yr','text-anchor':'middle'});
-    a.textContent="'"+String(d.anio).slice(2); svg.appendChild(a);
+    const a=el('text',{x:x(i)+bw/2,y:H-MB+22,
+      class:'axis-yr'+(esParcial(d.anio)?' parcial':''),'text-anchor':'middle'});
+    a.textContent="'"+String(d.anio).slice(2)+(esParcial(d.anio)?'*':''); svg.appendChild(a);
+    if(esParcial(d.anio)){
+      const n=el('text',{x:x(i)+bw/2,y:H-MB+36,class:'axis-yr parcial','text-anchor':'middle',
+                         'font-size':10});
+      n.textContent='ene–'+mesesDe(d.anio).slice(0,3); svg.appendChild(n);
+    }
   });
   const yl=el('text',{x:ML-10,y:MT-14,class:'axis-txt','text-anchor':'end'});
   yl.textContent='MDP 2020'; svg.appendChild(yl);
@@ -1106,8 +1187,10 @@ function drawMap(svgId,bloque,etiqueta){
 
 function drawYears(){
   const c=document.getElementById('years');
-  c.innerHTML=serie.map(d=>'<button class="yr" data-a="'+d.anio+'" aria-pressed="'+
-    (d.anio===anioSel)+'">'+d.anio+'</button>').join('');
+  c.innerHTML=serie.map(d=>'<button class="yr'+(esParcial(d.anio)?' parcial':'')+
+    '" data-a="'+d.anio+'" aria-pressed="'+(d.anio===anioSel)+'" title="'+
+    (esParcial(d.anio)?'Solo enero–'+mesesDe(d.anio)+' de '+d.anio:d.anio)+'">'+
+    d.anio+'</button>').join('');
   Array.prototype.forEach.call(c.querySelectorAll('.yr'),b=>
     b.addEventListener('click',()=>selAnio(+b.dataset.a)));
 }
@@ -1140,7 +1223,7 @@ function selAnio(a){
 }
 
 (function(){
-  const rows=serie.map(d=>'<tr><td>'+d.anio+'</td><td>'+fmt1(d.real)+'</td><td>'+fmt1(d.nominal)+
+  const rows=serie.map(d=>'<tr><td>'+etqAnioLargo(d.anio)+'</td><td>'+fmt1(d.real)+'</td><td>'+fmt1(d.nominal)+
     '</td><td>'+fmt(d.polizas)+'</td><td>'+fmt(d.obs)+'</td><td style="text-align:left">'+
     d.sexenio+'</td></tr>').join('');
   document.getElementById('tblSerie').innerHTML=
@@ -1235,10 +1318,20 @@ function pintaMedios(){
     t.textContent = modo==='pct' ? v.toFixed(0)+'%' : fmt(v);
     svg.appendChild(t);
   }
+  /* Banda sobre el año incompleto. En modo "%" la cifra es legítima —es la
+     repartición de los cinco meses—; en MDP todas las líneas se desploman por el
+     recorte, no por el mercado. La banda avisa en los dos casos. */
+  ANIOS.forEach((a,i)=>{
+    if(!esParcial(a)) return;
+    const x0 = i ? (x(i-1)+x(i))/2 : x(i);
+    svg.appendChild(el('rect',{x:x0,y:LMT,width:x(i)-x0+10,height:LH-LMT-LMB,
+                               class:'banda-parcial'}));
+  });
   ANIOS.forEach((a,i)=>{
     if(i%2 && i!==ANIOS.length-1) return;
-    const t = el('text',{x:x(i),y:LH-LMB+20,class:'axis-yr','text-anchor':'middle'});
-    t.textContent = "'"+String(a).slice(2); svg.appendChild(t);
+    const t = el('text',{x:x(i),y:LH-LMB+20,
+      class:'axis-yr'+(esParcial(a)?' parcial':''),'text-anchor':'middle'});
+    t.textContent = "'"+String(a).slice(2)+(esParcial(a)?'*':''); svg.appendChild(t);
   });
 
   const gCross = el('g',{id:'mCross'}); svg.appendChild(gCross);
@@ -1313,14 +1406,14 @@ function mueveMedios(ev){
 
   const orden=mDatos.map((d,k)=>({f:d.f,v:d.v[i],k:k})).sort((a,b)=>b.v-a.v);
   const fmtv = v => mEsc.modo==='pct' ? v.toFixed(1)+'%' : fmt1(v)+' MDP';
-  showTip(ev,'<b>'+ANIOS[i]+'</b>'+orden.map(o=>
+  showTip(ev,'<b>'+ANIOS[i]+'</b>'+notaParc(ANIOS[i])+orden.map(o=>
     '<div class="fl'+(o.k===cerca?' act':'')+'"><span>'+o.f+'</span><span class="n">'+
     fmtv(o.v)+'</span></div>').join(''));
 }
 
 function tablaMedios(modo, tot){
   const enc='<thead><tr><th style="text-align:left">Familia</th>'+
-    ANIOS.map(a=>'<th>'+a+'</th>').join('')+'</tr></thead>';
+    ANIOS.map(a=>'<th>'+etqAnio(a)+'</th>').join('')+'</tr></thead>';
   const filas=MED.familias.map(f=>{
     const v=valoresMedio(f,modo,tot);
     return '<tr><td>'+f+'</td>'+v.map(x=>'<td>'+(modo==='pct'?x.toFixed(1):fmt1(x))+'</td>').join('')+'</tr>';
@@ -1365,8 +1458,11 @@ function pintaCamp(){
 }
 (function initCamp(){
   document.getElementById('kAnio').innerHTML =
-    aniosCamp.map(a=>'<option value="'+a+'">'+a+'</option>').join('');
-  document.getElementById('kAnio').value = aniosCamp[aniosCamp.length-1];
+    aniosCamp.map(a=>'<option value="'+a+'">'+etqAnioLargo(a)+'</option>').join('');
+  /* Igual que los treemaps: abre en el último año COMPLETO. En 2026 hay 8 campañas
+     contra 300 de un año entero, y el cuadro se ve roto sin estarlo. */
+  const ultCamp = aniosCamp.filter(a=>!esParcial(a)).pop() || aniosCamp[aniosCamp.length-1];
+  document.getElementById('kAnio').value = ultCamp;
   document.getElementById('kAnio').addEventListener('change',pintaCamp);
   pintaCamp();
 })();
@@ -1501,8 +1597,8 @@ function pintaConc(){
 
 (function initConc(){
   document.getElementById('cAnio').innerHTML =
-    '<option value="">Todos los años (2012–2025)</option>'+
-    serie.map(d=>'<option value="'+d.anio+'">'+d.anio+'</option>').join('');
+    '<option value="">Todos los años ('+RANGO+')</option>'+
+    serie.map(d=>'<option value="'+d.anio+'">'+etqAnioLargo(d.anio)+'</option>').join('');
   ['cMetrica','cUmbral','cAnio'].forEach(id=>
     document.getElementById(id).addEventListener('change',pintaConc));
   pintaConc();
@@ -1603,7 +1699,8 @@ function pintar(){
 
 (function initBusca(){
   document.getElementById('fAnio').innerHTML =
-    '<option value="">Todos los años</option>'+serie.map(d=>'<option value="'+d.anio+'">'+d.anio+'</option>').join('');
+    '<option value="">Todos los años</option>'+
+    serie.map(d=>'<option value="'+d.anio+'">'+etqAnioLargo(d.anio)+'</option>').join('');
   let t;
   document.getElementById('q').addEventListener('input',()=>{clearTimeout(t);t=setTimeout(filtrar,140);});
   document.getElementById('fTipo').addEventListener('change',filtrar);
@@ -1754,10 +1851,55 @@ DICCIONARIO = [
 
 AUTOR = "Manuel Toral"
 URL_COMSOC = "https://www.gob.mx/buengobierno/documentos/estrategia-de-comunicacion-social"
-TITULO = "Publicidad oficial federal &middot; COMSOC 2012–2025"
-DESCRIPCION = ("Gasto del gobierno federal mexicano en publicidad oficial, 2012-2025, "
+TITULO = "Publicidad oficial federal &middot; COMSOC __RANGO__"
+DESCRIPCION = ("Gasto del gobierno federal mexicano en publicidad oficial, __RANGO__, "
                "reconstruido desde el detalle de polizas del sistema COMSOC. "
                f"Elaborado por {AUTOR}.")
+
+CARDINALES = {12: "Doce", 13: "Trece", 14: "Catorce", 15: "Quince", 16: "Dieciséis",
+              17: "Diecisiete", 18: "Dieciocho", 19: "Diecinueve", 20: "Veinte"}
+
+
+def _textos_cobertura(meta: dict) -> dict[str, str]:
+    """Las frases que dependen de hasta dónde llegan los datos.
+
+    Se arman aquí y no en el HTML porque el año más reciente casi siempre estará
+    incompleto: la Secretaría publica cortes parciales durante el año y el
+    definitivo hasta el siguiente. Escribirlo a mano garantiza que se quede viejo.
+    """
+    ini, fin = meta["anio_ini"], meta["anio_fin"]
+    parc = meta["parciales"]
+    n = meta["n_completos"]
+    cardinal = CARDINALES.get(n, str(n))
+
+    social = "de gasto federal en comunicaci&oacute;n social"
+    if not parc:
+        return {"__RANGO__": f"{ini}–{fin}",
+                "__COBERTURA__": f"{cardinal} ejercicios fiscales {social},",
+                "__AVISO__": "", "__AVISO_CORTO__": ""}
+
+    hasta = parc[str(fin)]["hasta"]
+    return {
+        "__RANGO__": f"{ini}–{fin}",
+        "__COBERTURA__": (f"{cardinal} ejercicios fiscales completos {social}, "
+                          f"m&aacute;s el arranque de {fin},"),
+        "__AVISO__": (
+            f'<p class="aviso cobertura" role="note"><b>{fin} va s&oacute;lo de enero a {hasta}.</b> '
+            f"El archivo de la Secretar&iacute;a corta el 15 de junio de {fin}, as&iacute; que "
+            f"la barra de {fin} son cinco meses, no un a&ntilde;o. No la compares contra los "
+            f"a&ntilde;os completos: el gasto se registra sobre todo al cierre del ejercicio "
+            f"&mdash;entre 2012 y {meta['anio_fin_completo']}, enero&ndash;mayo signific&oacute; "
+            f"entre 0.3% y 13.1% del a&ntilde;o&mdash;, de modo que un arranque bajo es lo normal "
+            f"y no una ca&iacute;da. Por eso {fin} queda fuera del ciclo electoral y de la "
+            f"comparaci&oacute;n entre sexenios, donde s&iacute; distorsionar&iacute;a la cuenta.</p>"),
+        "__AVISO_CORTO__": (
+            f'<li class="flag"><b>{fin} est&aacute; incompleto.</b> El archivo de la fuente '
+            f"corta el 15 de junio y cubre solo enero&ndash;{hasta}. Aparece con "
+            f"<b>trama diagonal</b> en la gr&aacute;fica de barras y con asterisco en los ejes "
+            f"y los selectores, y queda fuera del ciclo electoral y de la comparaci&oacute;n "
+            f"entre sexenios. Los treemaps y el buscador s&iacute; lo incluyen: ah&iacute; cada "
+            f"a&ntilde;o se lee por separado.</li>"),
+    }
 
 
 def _fragmento(datos: dict) -> str:
@@ -1775,12 +1917,15 @@ def _fragmento(datos: dict) -> str:
               .replace("__ENTIDADES__", f"{len(datos['tabla']['nombres']):,}")
               .replace("__URL_COMSOC__", URL_COMSOC)
               .replace("__AUTOR__", AUTOR))
+    for marca, texto in _textos_cobertura(datos["meta"]).items():
+        cuerpo = cuerpo.replace(marca, texto)
     guion = (GUION
              .replace("__DATOS__", json.dumps(datos, ensure_ascii=False, separators=(",", ":")))
              .replace("__DICCIONARIO__",
                       json.dumps(DICCIONARIO, ensure_ascii=False, separators=(",", ":")))
              .replace("__AUTOR__", AUTOR))
-    return f"<title>{TITULO}</title>\n<style>{ESTILO}</style>\n{cuerpo}\n<script>{guion}</script>\n"
+    titulo = TITULO.replace("__RANGO__", _textos_cobertura(datos["meta"])["__RANGO__"])
+    return f"<title>{titulo}</title>\n<style>{ESTILO}</style>\n{cuerpo}\n<script>{guion}</script>\n"
 
 
 FAVICON = (
@@ -1812,7 +1957,8 @@ def construir(destino: Path | None = None, fragmento: bool = False) -> Path:
             '<html lang="es">\n<head>\n'
             '<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-            f'<meta name="description" content="{DESCRIPCION}">\n'
+            f'<meta name="description" content="'
+            f'{DESCRIPCION.replace("__RANGO__", _textos_cobertura(datos["meta"])["__RANGO__"])}">\n'
             f'<meta name="author" content="{AUTOR}">\n'
             '<meta name="color-scheme" content="light">\n'
             f'<link rel="icon" href="{FAVICON}">\n'

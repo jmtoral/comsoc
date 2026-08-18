@@ -1,10 +1,14 @@
-# COMSOC — Publicidad oficial (México, 2012–2025)
+# COMSOC — Publicidad oficial (México, 2012–2026)
 
 Dataset unificado de **pólizas** de gasto en comunicación social del gobierno federal mexicano,
 a partir de los Excel de la Secretaría Anticorrupción y Buen Gobierno (antes SFP).
 Objetivo: **detectar comportamientos en el gasto en publicidad oficial**.
 
-Migración de un pipeline en R (2012–2023, en `legacy/`) a Python reproducible en Colab (2012–2025).
+Migración de un pipeline en R (2012–2023, en `legacy/`) a Python reproducible (2012–2026).
+
+**2026 cubre sólo enero–mayo.** Se declara con `parcial: true` / `meses_cubiertos: 5` en
+`layouts.yaml`; de ahí salen las marcas del reporte y las exclusiones. Un año parcial **nunca**
+entra en un cálculo que compare años entre sí (ciclo electoral, sexenios). Ver HANDOFF §3.20.
 
 - **[HANDOFF.md](HANDOFF.md)** — estado actual, qué falta, dónde retomar. **Léelo primero.**
 - **[PLAN_MIGRACION.md](PLAN_MIGRACION.md)** — diagnóstico de formatos, mapeo de campos, plan por fases.
@@ -55,7 +59,8 @@ Se mapean a campos distintos: `clase_beneficiario` / `clase_medio`.
 
 **Todo lo específico de un año vive en `config/`. El código no tiene un solo `if anio == ...`.**
 
-- `config/layouts.yaml` — 15 archivos, 34 hojas: generación, tipo, partida, fila de encabezado.
+- `config/layouts.yaml` — 16 archivos, 38 hojas: generación, tipo, partida, fila de encabezado,
+  y la cobertura del año si es parcial.
 - `config/columnas.yaml` — mapeo al esquema canónico, **por generación** (así se resuelven las
   trampas 2 y 3).
 - El encabezado se **detecta automáticamente** (`layouts.detectar_header_row`): se ha movido
